@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#FF6B9D">
+<title>宝妈创作工作台</title>
+<style>
+/* ===== 全局样式 ===== */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+:root{
+  --pink:#FF6B9D;--pink-light:#FFB6C1;--pink-dark:#E63976;
+  --bg:#FFF5F8;--card:#FFFFFF;--text:#333;--text-light:#888;
+  --radius:16px;--shadow:0 4px 16px rgba(255,107,157,0.12);
+  --tag-bg:#FFE4EC;--tag-text:#FF6B9D;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);max-width:430px;margin:0 auto;min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
+input,textarea,button,select{font-family:inherit;}
+a{color:inherit;text-decoration:none;}
+
+/* ===== 顶部栏 ===== */
+.top-bar{position:sticky;top:0;z-index:100;background:linear-gradient(135deg,var(--pink) 0%,var(--pink-dark) 100%);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 12px rgba(230,57,118,0.3);}
+.menu-btn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;border-radius:8px;}
+.menu-btn:hover{background:rgba(255,255,255,0.15);}
+.menu-btn svg{width:24px;height:24px;fill:#fff;}
+.top-title{font-size:17px;font-weight:600;flex:1;text-align:center;}
+.refresh-btn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;border-radius:8px;}
+.refresh-btn:hover{background:rgba(255,255,255,0.15);}
+.refresh-btn svg{width:22px;height:22px;fill:#fff;}
+.refresh-btn.spinning svg{animation:spin 0.8s linear infinite;}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+
+/* ===== 抽屉导航 ===== */
+.drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;opacity:0;visibility:hidden;transition:all 0.3s;}
+.drawer-overlay.open{opacity:1;visibility:visible;}
+.drawer{position:fixed;top:0;left:-280px;width:280px;height:100vh;background:#fff;z-index:201;transition:left 0.3s ease;box-shadow:4px 0 20px rgba(0,0,0,0.15);overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.drawer.open{left:0;}
+.drawer-header{background:linear-gradient(135deg,var(--pink) 0%,var(--pink-dark) 100%);color:#fff;padding:28px 20px 20px;}
+.drawer-avatar{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:10px;}
+.drawer-name{font-size:17px;font-weight:600;}
+.drawer-sub{font-size:12px;opacity:0.85;margin-top:4px;}
+.drawer-menu{padding:8px 0;}
+.drawer-item{display:flex;align-items:center;gap:12px;padding:14px 20px;font-size:15px;cursor:pointer;transition:background 0.2s;}
+.drawer-item:hover{background:var(--bg);}
+.drawer-item.active{background:var(--tag-bg);color:var(--pink);font-weight:600;}
+.drawer-item svg{width:22px;height:22px;fill:currentColor;flex-shrink:0;}
+.drawer-divider{height:1px;background:#f0f0f0;margin:8px 0;}
+.drawer-section-title{font-size:11px;color:#999;padding:8px 20px 4px;text-transform:uppercase;letter-spacing:1px;}
+.drawer-item .badge{margin-left:auto;background:var(--pink);color:#fff;font-size:10px;padding:1px 7px;border-radius:8px;}
+
+/* ===== 主内容区 ===== */
+.main-content{padding:12px 14px 80px;}
+.page{display:none;animation:fadeIn 0.3s ease;}
+.page.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===== 卡片 ===== */
+.card{background:var(--card);border-radius:var(--radius);padding:16px;margin-bottom:12px;box-shadow:var(--shadow);}
+.card-title{font-size:16px;font-weight:600;margin-bottom:12px;color:var(--text);display:flex;align-items:center;gap:8px;}
+.card-title .emoji{font-size:18px;}
+.card-title .count{margin-left:auto;font-size:12px;color:var(--text-light);font-weight:400;}
+.card-subtitle{font-size:12px;color:var(--text-light);margin-bottom:12px;}
+
+/* ===== 进度条 ===== */
+.progress-wrap{margin-bottom:14px;}
+.progress-label{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;}
+.progress-label .pct{font-weight:600;color:var(--pink);}
+.progress-bar{height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--pink),var(--pink-light));border-radius:4px;transition:width 0.5s ease;}
+
+/* ===== 清单 ===== */
+.checklist .check-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f7f7f7;}
+.checklist .check-item:last-child{border-bottom:none;}
+.checkbox{width:22px;height:22px;border:2px solid #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all 0.2s;}
+.checkbox.checked{background:var(--pink);border-color:var(--pink);}
+.checkbox.checked::after{content:'✓';color:#fff;font-size:14px;font-weight:bold;}
+.check-text{flex:1;font-size:14px;line-height:1.5;}
+.check-text.done{text-decoration:line-through;color:var(--text-light);}
+.btn-add-item{margin-top:8px;padding:8px;width:100%;border:1px dashed #ddd;border-radius:8px;background:none;color:var(--text-light);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;}
+.btn-add-item:hover{border-color:var(--pink);color:var(--pink);}
+.btn-del{color:#ccc;font-size:18px;cursor:pointer;padding:0 4px;flex-shrink:0;}
+.btn-del:hover{color:#f00;}
+
+/* ===== 选题灵感卡片 ===== */
+.topic-card{background:#fff;border-radius:var(--radius);padding:14px;margin-bottom:10px;box-shadow:var(--shadow);border-left:3px solid var(--pink);}
+.topic-card .topic-head{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;}
+.topic-card .topic-num{width:24px;height:24px;background:var(--pink);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;}
+.topic-card .topic-title{font-size:15px;font-weight:600;line-height:1.4;flex:1;}
+.topic-card .topic-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+.topic-card .tag{font-size:11px;background:var(--tag-bg);color:var(--tag-text);padding:2px 8px;border-radius:4px;}
+.topic-card .topic-desc{font-size:13px;color:var(--text-light);line-height:1.6;margin-bottom:10px;}
+.topic-card .topic-actions{display:flex;gap:8px;flex-wrap:wrap;}
+.jump-btn{flex:1;min-width:70px;padding:7px 10px;border:none;border-radius:8px;font-size:12px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;}
+.jump-btn:active{transform:scale(0.95);}
+.jump-btn.dy{background:#000;}
+.jump-btn.bili{background:#FB7299;}
+.jump-btn.xhs{background:#FF2442;}
+.jump-btn.kw{background:#5d4037;}
+.jump-btn svg{width:16px;height:16px;fill:#fff;}
+
+/* ===== 热点二创 ===== */
+.hot-card{background:#fff;border-radius:var(--radius);padding:14px;margin-bottom:10px;box-shadow:var(--shadow);}
+.hot-card .hot-source{display:inline-block;font-size:11px;padding:2px 8px;border-radius:4px;margin-bottom:8px;font-weight:500;}
+.hot-card .hot-source.dy{background:#000;color:#fff;}
+.hot-card .hot-source.weibo{background:#E6162D;color:#fff;}
+.hot-card .hot-source.bili{background:#FB7299;color:#fff;}
+.hot-card .hot-source.zhihu{background:#0084FF;color:#fff;}
+.hot-card .hot-source.baidu{background:#2932E1;color:#fff;}
+.hot-card .hot-source.news{background:#FF6B6B;color:#fff;}
+.hot-card .hot-source.song{background:#FF7A45;color:#fff;}
+.hot-card .hot-source.star{background:#9C27B0;color:#fff;}
+.hot-card .hot-title{font-size:14px;font-weight:600;margin-bottom:6px;line-height:1.4;}
+.hot-card .hot-angle{font-size:13px;color:var(--text);line-height:1.6;background:var(--bg);padding:10px;border-radius:8px;margin-bottom:8px;}
+.hot-card .hot-angle::before{content:'改编角度：';font-weight:600;color:var(--pink);}
+.hot-card .hot-copy{font-size:13px;color:#333;line-height:1.6;background:#FFF9F0;border-left:3px solid #FFA500;padding:10px;border-radius:0 8px 8px 0;margin-bottom:8px;white-space:pre-wrap;}
+.hot-card .hot-copy-label{font-size:11px;color:#FFA500;font-weight:600;margin-bottom:4px;}
+.hot-card .hot-copy-original{font-size:12px;color:var(--text-light);font-style:italic;line-height:1.5;margin-bottom:6px;padding:6px 8px;background:#f9f9f9;border-radius:6px;}
+.hot-card .hot-actions{display:flex;gap:8px;}
+.hot-card .hot-btn{flex:1;padding:6px;border:1px solid var(--pink);color:var(--pink);border-radius:6px;font-size:12px;cursor:pointer;background:#fff;text-align:center;}
+.hot-card .hot-btn:active{background:var(--tag-bg);}
+.hot-card .hot-btn.filled{background:var(--pink);color:#fff;}
+
+/* ===== 内容复盘 ===== */
+.review-metric{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f7f7f7;}
+.review-metric:last-child{border-bottom:none;}
+.review-metric .metric-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.review-metric .metric-info{flex:1;}
+.review-metric .metric-label{font-size:12px;color:var(--text-light);}
+.review-metric .metric-input{width:90px;padding:6px 8px;border:1px solid #eee;border-radius:6px;font-size:14px;text-align:right;}
+.review-metric .metric-input:focus{outline:none;border-color:var(--pink);}
+.review-section{margin-top:12px;}
+.review-section-label{font-size:13px;font-weight:600;color:var(--pink);margin-bottom:6px;}
+.review-textarea{width:100%;min-height:60px;padding:10px;border:1px solid #eee;border-radius:8px;font-size:13px;line-height:1.5;resize:vertical;font-family:inherit;}
+.review-textarea:focus{outline:none;border-color:var(--pink);}
+.btn-save{width:100%;padding:12px;background:var(--pink);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;margin-top:12px;}
+.btn-save:active{background:var(--pink-dark);}
+.btn-save.saved{background:#4CAF50;}
+
+/* ===== 备忘录 ===== */
+.memo-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f7f7f7;}
+.memo-item .checkbox{width:20px;height:20px;}
+.memo-input{flex:1;padding:6px 0;border:none;font-size:14px;background:none;border-bottom:1px solid transparent;}
+.memo-input:focus{outline:none;border-bottom-color:var(--pink);}
+
+/* ===== 速算练习 ===== */
+.calc-stats{display:flex;gap:10px;margin-bottom:14px;}
+.calc-stat{flex:1;background:var(--card);border-radius:12px;padding:10px;text-align:center;box-shadow:var(--shadow);}
+.calc-stat .stat-num{font-size:20px;font-weight:700;color:var(--pink);}
+.calc-stat .stat-label{font-size:11px;color:var(--text-light);margin-top:2px;}
+.calc-question{font-size:32px;font-weight:700;text-align:center;margin:20px 0;color:var(--text);}
+.calc-input{text-align:center;font-size:32px;font-weight:700;border:2px solid var(--pink);border-radius:12px;width:120px;padding:8px;margin:0 auto 16px;display:block;text-align:center;}
+.calc-input:focus{outline:none;box-shadow:0 0 0 3px rgba(255,107,157,0.15);}
+.calc-input.wrong{border-color:#f00;animation:shake 0.3s;}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.calc-btn{padding:12px 30px;background:var(--pink);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;display:block;margin:0 auto;}
+.calc-btn:active{background:var(--pink-dark);}
+.calc-settings{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+.calc-set-btn{padding:6px 14px;border:1px solid #ddd;border-radius:8px;font-size:12px;background:#fff;cursor:pointer;}
+.calc-set-btn.active{background:var(--pink);color:#fff;border-color:var(--pink);}
+
+/* ===== 英语练习 ===== */
+.eng-tabs{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.eng-tab{padding:8px 16px;border:1px solid #ddd;border-radius:20px;font-size:13px;background:#fff;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.eng-tab.active{background:var(--pink);color:#fff;border-color:var(--pink);}
+.eng-word{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:var(--shadow);}
+.eng-word .word{font-size:18px;font-weight:700;color:var(--text);}
+.eng-word .phonetic{font-size:13px;color:var(--text-light);margin:4px 0;}
+.eng-word .meaning{font-size:14px;color:var(--text);line-height:1.5;}
+.eng-word .word-actions{display:flex;gap:8px;margin-top:8px;}
+.eng-audio-btn{padding:6px 14px;background:var(--tag-bg);color:var(--pink);border:none;border-radius:8px;font-size:12px;cursor:pointer;}
+.eng-audio-btn:active{opacity:0.7;}
+.eng-grammar{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:var(--shadow);}
+.eng-grammar .g-title{font-size:15px;font-weight:600;color:var(--pink);margin-bottom:8px;}
+.eng-grammar .g-body{font-size:13px;line-height:1.7;color:var(--text);}
+.eng-grammar .g-example{font-size:12px;color:var(--text-light);font-style:italic;margin-top:6px;padding:6px 8px;background:var(--bg);border-radius:6px;}
+.eng-shadow{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:var(--shadow);}
+.eng-shadow .s-title{font-size:14px;font-weight:600;margin-bottom:6px;}
+.eng-shadow .s-text{font-size:13px;line-height:1.6;margin-bottom:8px;}
+.eng-shadow-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.eng-shadow-btn{padding:8px 16px;border:none;border-radius:8px;font-size:13px;cursor:pointer;color:#fff;}
+.eng-shadow-btn.play{background:var(--pink);}
+.eng-shadow-btn.speak{background:#9C27B0;}
+.eng-shadow-btn.stop{background:#666;}
+.eng-search-bar{display:flex;gap:8px;margin-bottom:14px;}
+.eng-search-input{flex:1;padding:10px 14px;border:1px solid #ddd;border-radius:10px;font-size:14px;}
+.eng-search-input:focus{outline:none;border-color:var(--pink);}
+.eng-search-btn{padding:0 18px;background:var(--pink);color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;}
+
+/* ===== 猜字谜 ===== */
+.riddle-card{background:#fff;border-radius:var(--radius);padding:16px;margin-bottom:12px;box-shadow:var(--shadow);text-align:center;}
+.riddle-clue{font-size:16px;line-height:1.6;margin-bottom:12px;color:var(--text);padding:14px;background:var(--bg);border-radius:12px;}
+.riddle-clue .highlight{color:var(--pink);font-weight:600;}
+.riddle-input{width:80px;text-align:center;font-size:24px;font-weight:700;border:2px solid var(--pink);border-radius:12px;padding:8px;margin:0 auto 12px;display:block;}
+.riddle-input:focus{outline:none;box-shadow:0 0 0 3px rgba(255,107,157,0.15);}
+.riddle-input.wrong{border-color:#f00;animation:shake 0.3s;}
+.riddle-btn{padding:10px 28px;background:var(--pink);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;}
+.riddle-hint{font-size:12px;color:var(--text-light);margin-top:8px;}
+.riddle-answer{font-size:14px;color:#4CAF50;font-weight:600;margin-top:8px;}
+
+/* ===== 通用按钮 ===== */
+.btn{padding:10px 20px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;}
+.btn-primary{background:var(--pink);color:#fff;}
+.btn-outline{border:1px solid var(--pink);color:var(--pink);background:#fff;}
+
+/* ===== 空状态 ===== */
+.empty{text-align:center;padding:40px 20px;color:var(--text-light);}
+.empty .empty-icon{font-size:40px;margin-bottom:12px;}
+.empty .empty-text{font-size:14px;}
+.empty .empty-sub{font-size:12px;margin-top:6px;}
+
+/* ===== Toast ===== */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;z-index:300;opacity:0;transition:opacity 0.3s;pointer-events:none;}
+.toast.show{opacity:1;}
+
+/* ===== 底部导航 ===== */
+.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:#fff;border-top:1px solid #f0f0f0;display:flex;z-index:90;box-shadow:0 -2px 10px rgba(0,0,0,0.05);}
+.bottom-nav-item{flex:1;padding:8px 4px;text-align:center;font-size:10px;color:var(--text-light);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;}
+.bottom-nav-item svg{width:22px;height:22px;fill:currentColor;}
+.bottom-nav-item.active{color:var(--pink);}
+.bottom-nav-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+
+/* ===== 加载动画 ===== */
+.loading{text-align:center;padding:30px;}
+.spinner{width:32px;height:32px;border:3px solid #f0f0f0;border-top-color:var(--pink);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 10px;}
+.loading-text{font-size:13px;color:var(--text-light);}
+
+/* ===== 日期标记 ===== */
+.date-tag{display:inline-block;font-size:11px;color:var(--text-light);background:var(--bg);padding:2px 8px;border-radius:4px;}
+.update-time{font-size:11px;color:var(--text-light);text-align:center;padding:8px 0 4px;}
+
+/* 响应式 */
+@media(min-width:500px){
+  body{box-shadow:0 0 30px rgba(0,0,0,0.08);}
+}
+</style>
+</head>
+<body>
+
+<!-- 顶部栏 -->
+<div class="top-bar">
+  <div class="menu-btn" onclick="toggleDrawer(true)">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+  </div>
+  <div class="top-title" id="topTitle">每日计划</div>
+  <div class="refresh-btn" id="refreshBtn" onclick="refreshFromGist()">
+    <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-8 3.58-8 8s3.58 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+  </div>
+</div>
+
+<!-- 抽屉导航 -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="toggleDrawer(false)"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <div class="drawer-avatar">💪</div>
+    <div class="drawer-name">宝妈创作工作台</div>
+    <div class="drawer-sub">勇闯自媒体 · 努力活着 · 赚钱养家</div>
+  </div>
+  <div class="drawer-menu">
+    <div class="drawer-section-title">每日创作</div>
+    <div class="drawer-item active" data-page="plan" onclick="switchPage('plan')">
+      <svg viewBox="0 0 24 24"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2 14l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+      每日计划
+    </div>
+    <div class="drawer-item" data-page="topic" onclick="switchPage('topic')">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+      选题灵感
+      <span class="badge" id="topicBadge">10</span>
+    </div>
+    <div class="drawer-item" data-page="hot" onclick="switchPage('hot')">
+      <svg viewBox="0 0 24 24"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.35 4 10.04 4 13c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.06-2.68 2.14-3.3.95-.56 2.04-.95 2.71-1.65.73.75 1.24 1.79 1.24 3.02C16.58 17.6 15.4 19 11.71 19z"/></svg>
+      热点二创
+      <span class="badge" id="hotBadge">10</span>
+    </div>
+    <div class="drawer-item" data-page="review" onclick="switchPage('review')">
+      <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      内容复盘
+    </div>
+    <div class="drawer-item" data-page="memo" onclick="switchPage('memo')">
+      <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+      备忘录
+    </div>
+
+    <div class="drawer-section-title">学习成长</div>
+    <div class="drawer-item" data-page="calc" onclick="switchPage('calc')">
+      <svg viewBox="0 0 24 24"><path d="M7 18h4v-2H7v2zm0-4h4v-2H7v2zm0-4h4V8H7v2zm-2 9.5V5c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v14.5c0 .55-.45 1-1 1H6c-.55 0-1-.45-1-1zM18 6H6v12h12V6zm-3 4h2V8h-2v2zm0 4h2v-2h-2v2zm0 4h2v-2h-2v2z"/></svg>
+      速算练习
+    </div>
+    <div class="drawer-item" data-page="english" onclick="switchPage('english')">
+      <svg viewBox="0 0 24 24"><path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.7-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>
+      英语练习
+    </div>
+    <div class="drawer-item" data-page="riddle" onclick="switchPage('riddle')">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
+      猜字谜
+    </div>
+
+    <div class="drawer-divider"></div>
+    <div class="drawer-item" onclick="showAbout()">
+      <svg viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+      关于工作台
+    </div>
+  </div>
+</div>
+
+<!-- 主内容区 -->
+<div class="main-content" id="mainContent">
+
+<!-- ===== 每日计划 ===== -->
+<div class="page active" id="page-plan">
+  <div class="card">
+    <div class="card-title"><span class="emoji">📋</span> 今日计划 <span class="count" id="planDate"></span></div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span>完成进度</span><span class="pct" id="planPct">0%</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="planFill" style="width:0%"></div></div>
+    </div>
+    <div class="checklist" id="planList"></div>
+    <button class="btn-add-item" onclick="addPlanItem()">+ 添加任务</button>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="emoji">📊</span> 本周坚持</div>
+    <div id="weekStats" style="font-size:13px;line-height:2;color:var(--text-light);"></div>
+  </div>
+</div>
+
+<!-- ===== 选题灵感 ===== -->
+<div class="page" id="page-topic">
+  <div class="update-time" id="topicUpdateTime">加载中...</div>
+  <div id="topicList">
+    <div class="loading"><div class="spinner"></div><div class="loading-text">加载选题灵感...</div></div>
+  </div>
+</div>
+
+<!-- ===== 热点二创 ===== -->
+<div class="page" id="page-hot">
+  <div class="update-time" id="hotUpdateTime">加载中...</div>
+  <div id="hotList">
+    <div class="loading"><div class="spinner"></div><div class="loading-text">加载热点内容...</div></div>
+  </div>
+</div>
+
+<!-- ===== 内容复盘 ===== -->
+<div class="page" id="page-review">
+  <div class="card">
+    <div class="card-title"><span class="emoji">📈</span> 今日数据复盘</div>
+    <div class="card-subtitle">记录每天的运营数据，找到增长点</div>
+    <div class="review-metric">
+      <div class="metric-icon" style="background:#E3F2FD;">▶️</div>
+      <div class="metric-info"><div class="metric-label">播放量</div></div>
+      <input class="metric-input" id="rv-plays" type="number" placeholder="0">
+    </div>
+    <div class="review-metric">
+      <div class="metric-icon" style="background:#FFEBEE;">❤️</div>
+      <div class="metric-info"><div class="metric-label">点赞数</div></div>
+      <input class="metric-input" id="rv-likes" type="number" placeholder="0">
+    </div>
+    <div class="review-metric">
+      <div class="metric-icon" style="background:#FFF3E0;">💬</div>
+      <div class="metric-info"><div class="metric-label">评论数</div></div>
+      <input class="metric-input" id="rv-comments" type="number" placeholder="0">
+    </div>
+    <div class="review-metric">
+      <div class="metric-icon" style="background:#F3E5F5;">🔄</div>
+      <div class="metric-info"><div class="metric-label">转发数</div></div>
+      <input class="metric-input" id="rv-shares" type="number" placeholder="0">
+    </div>
+    <div class="review-section">
+      <div class="review-section-label">✨ 亮点（做得好的）</div>
+      <textarea class="review-textarea" id="rv-highlights" placeholder="今天哪条内容表现好？为什么？"></textarea>
+    </div>
+    <div class="review-section">
+      <div class="review-section-label">⚠️ 问题（需要改进的）</div>
+      <textarea class="review-textarea" id="rv-problems" placeholder="遇到什么问题？哪个环节卡住了？"></textarea>
+    </div>
+    <div class="review-section">
+      <div class="review-section-label">🚀 优化方案（明天怎么做得更好）</div>
+      <textarea class="review-textarea" id="rv-optimization" placeholder="明天的改进计划"></textarea>
+    </div>
+    <button class="btn-save" id="reviewSaveBtn" onclick="saveReview()">保存复盘</button>
+  </div>
+  <div class="card" id="reviewHistory"></div>
+</div>
+
+<!-- ===== 备忘录 ===== -->
+<div class="page" id="page-memo">
+  <div class="card">
+    <div class="card-title"><span class="emoji">📝</span> 备忘录</div>
+    <div class="card-subtitle">随手记，随时看</div>
+    <div id="memoList"></div>
+    <button class="btn-add-item" onclick="addMemoItem()">+ 添加一行</button>
+  </div>
+</div>
+
+<!-- ===== 速算练习 ===== -->
+<div class="page" id="page-calc">
+  <div class="card">
+    <div class="card-title"><span class="emoji">🧮</span> 速算练习</div>
+    <div class="calc-stats">
+      <div class="calc-stat"><div class="stat-num" id="calcCorrect">0</div><div class="stat-label">答对</div></div>
+      <div class="calc-stat"><div class="stat-num" id="calcWrong">0</div><div class="stat-label">答错</div></div>
+      <div class="calc-stat"><div class="stat-num" id="calcStreak">0</div><div class="stat-label">连对</div></div>
+      <div class="calc-stat"><div class="stat-num" id="calcTime">0s</div><div class="stat-label">用时</div></div>
+    </div>
+    <div class="calc-settings" id="calcSettings"></div>
+    <div class="calc-question" id="calcQuestion">?</div>
+    <input class="calc-input" id="calcInput" type="number" inputmode="numeric" placeholder="?" onkeyup="if(event.key==='Enter')checkCalc()">
+    <button class="calc-btn" onclick="checkCalc()">提交答案</button>
+    <div id="calcImportArea" style="margin-top:14px;border-top:1px solid #f0f0f0;padding-top:12px;"></div>
+  </div>
+</div>
+
+<!-- ===== 英语练习 ===== -->
+<div class="page" id="page-english">
+  <div class="card">
+    <div class="card-title"><span class="emoji">📚</span> 英语学习</div>
+    <div class="card-subtitle">成年人零基础 · 每天进步一点点</div>
+    <div class="eng-tabs" id="engTabs">
+      <div class="eng-tab active" data-etag="plan">学习计划</div>
+      <div class="eng-tab" data-etag="word">单词</div>
+      <div class="eng-tab" data-etag="grammar">语法</div>
+      <div class="eng-tab" data-etag="shadow">影子跟读</div>
+    </div>
+    <div id="engContent"></div>
+  </div>
+</div>
+
+<!-- ===== 猜字谜 ===== -->
+<div class="page" id="page-riddle">
+  <div class="card">
+    <div class="card-title"><span class="emoji">🧩</span> 猜字谜</div>
+    <div class="card-subtitle">两个字各拆一半，剩下的部分组成新字</div>
+    <div class="calc-stats">
+      <div class="calc-stat"><div class="stat-num" id="riddleCorrect">0</div><div class="stat-label">答对</div></div>
+      <div class="calc-stat"><div class="stat-num" id="riddleWrong">0</div><div class="stat-label">答错</div></div>
+      <div class="calc-stat"><div class="stat-num" id="riddleStreak">0</div><div class="stat-label">连对</div></div>
+    </div>
+    <div id="riddleContent"></div>
+  </div>
+</div>
+
+</div><!-- end main-content -->
+
+<!-- 底部导航 -->
+<div class="bottom-nav" id="bottomNav">
+  <div class="bottom-nav-item active" data-page="plan" onclick="switchPage('plan')">
+    <svg viewBox="0 0 24 24"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2 14l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+    <span>计划</span>
+  </div>
+  <div class="bottom-nav-item" data-page="topic" onclick="switchPage('topic')">
+    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+    <span>选题</span>
+  </div>
+  <div class="bottom-nav-item" data-page="hot" onclick="switchPage('hot')">
+    <svg viewBox="0 0 24 24"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.35 4 10.04 4 13c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67z"/></svg>
+    <span>热点</span>
+  </div>
+  <div class="bottom-nav-item" data-page="review" onclick="switchPage('review')">
+    <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+    <span>复盘</span>
+  </div>
+  <div class="bottom-nav-item" data-page="memo" onclick="switchPage('memo')">
+    <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+    <span>备忘</span>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+//  宝妈创作工作台 - 单文件应用
+//  数据存储：localStorage
+//  数据来源：GitHub Gist (自动更新)
+// ============================================================
+
+// ===== 配置 =====
+const CONFIG = {
+  // Gist ID（部署后配置）
+  GIST_ID: '',  // ← 这里填你的公开Gist ID
+  GIST_FILENAME: 'creator-data.json',
+  // Gist Raw URL（自动拼接，也可手动覆盖）
+  get GIST_URL() {
+    if (this.GIST_ID) return `https://gist.githubusercontent.com/${this.GIST_ID}/raw/${this.GIST_FILENAME}`;
+    return '';
+  }
+};
+
+// ===== 本地存储封装 =====
+const Store = {
+  get(key, def) {
+    try { const v = localStorage.getItem('cw_' + key); return v ? JSON.parse(v) : def; }
+    catch(e) { return def; }
+  },
+  set(key, val) {
+    try { localStorage.setItem('cw_' + key, JSON.stringify(val)); } catch(e) {}
+  }
+};
+
+// ===== 工具函数 =====
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function formatDate() {
+  const d = new Date();
+  const week = ['日','一','二','三','四','五','六'][d.getDay()];
+  return `${d.getMonth()+1}月${d.getDate()}日 周${week}`;
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ===== 抽屉导航 =====
+function toggleDrawer(open) {
+  document.getElementById('drawer').classList.toggle('open', open);
+  document.getElementById('drawerOverlay').classList.toggle('open', open);
+}
+
+// ===== 页面切换 =====
+const PAGE_TITLES = {
+  plan: '每日计划', topic: '选题灵感', hot: '热点二创',
+  review: '内容复盘', memo: '备忘录', calc: '速算练习',
+  english: '英语练习', riddle: '猜字谜'
+};
+
+function switchPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + page)?.classList.add('active');
+  document.getElementById('topTitle').textContent = PAGE_TITLES[page] || '';
+
+  document.querySelectorAll('.drawer-item').forEach(i => i.classList.remove('active'));
+  document.querySelector(`.drawer-item[data-page="${page}"]`)?.classList.add('active');
+
+  document.querySelectorAll('.bottom-nav-item').forEach(i => i.classList.remove('active'));
+  document.querySelector(`.bottom-nav-item[data-page="${page}"]`)?.classList.add('active');
+
+  toggleDrawer(false);
+  window.scrollTo(0, 0);
+
+  // 页面加载回调
+  if (page === 'plan') renderPlan();
+  if (page === 'topic') loadTopics();
+  if (page === 'hot') loadHot();
+  if (page === 'review') loadReview();
+  if (page === 'memo') renderMemo();
+  if (page === 'calc') initCalc();
+  if (page === 'english') initEnglish();
+  if (page === 'riddle') initRiddle();
+}
+
+// 底部导航点击
+document.querySelectorAll('.bottom-nav-item').forEach(item => {
+  item.addEventListener('click', () => switchPage(item.dataset.page));
+});
+
+// ============================================================
+//  模块1: 每日计划
+// ============================================================
+function getDefaultPlan() {
+  return [
+    { text: '拍3-5张孩子日常照片（户外/背影/侧面）', done: false },
+    { text: '写1条图文文案（金句+感悟+正文）', done: false },
+    { text: '发布1条小红书/抖音内容', done: false },
+    { text: '刷对标账号3条，记录金句', done: false },
+    { text: '复盘昨日数据', done: false }
+  ];
+}
+
+function getPlan() {
+  const key = 'plan_' + todayKey();
+  let plan = Store.get(key, null);
+  if (!plan) {
+    plan = getDefaultPlan();
+    Store.set(key, plan);
+  }
+  return plan;
+}
+
+function renderPlan() {
+  document.getElementById('planDate').textContent = formatDate();
+  const plan = getPlan();
+  const list = document.getElementById('planList');
+  list.innerHTML = '';
+  plan.forEach((item, i) => {
+    const div = document.createElement('div');
+    div.className = 'check-item';
+    div.innerHTML = `
+      <div class="checkbox ${item.done?'checked':''}" onclick="togglePlan(${i})"></div>
+      <div class="check-text ${item.done?'done':''}">${escapeHtml(item.text)}</div>
+      <span class="btn-del" onclick="delPlan(${i})">×</span>
+    `;
+    list.appendChild(div);
+  });
+  const done = plan.filter(p => p.done).length;
+  const pct = plan.length ? Math.round(done/plan.length*100) : 0;
+  document.getElementById('planPct').textContent = pct + '%';
+  document.getElementById('planFill').style.width = pct + '%';
+  renderWeekStats();
+}
+
+function togglePlan(i) {
+  const plan = getPlan();
+  plan[i].done = !plan[i].done;
+  Store.set('plan_' + todayKey(), plan);
+  renderPlan();
+}
+
+function addPlanItem() {
+  const text = prompt('输入任务内容：');
+  if (!text) return;
+  const plan = getPlan();
+  plan.push({ text, done: false });
+  Store.set('plan_' + todayKey(), plan);
+  renderPlan();
+}
+
+function delPlan(i) {
+  if (!confirm('删除这个任务？')) return;
+  const plan = getPlan();
+  plan.splice(i, 1);
+  Store.set('plan_' + todayKey(), plan);
+  renderPlan();
+}
+
+function renderWeekStats() {
+  const stats = document.getElementById('weekStats');
+  let html = '';
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = `plan_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const plan = Store.get(key, null);
+    if (plan) {
+      const done = plan.filter(p => p.done).length;
+      const pct = Math.round(done / plan.length * 100);
+      const label = `${d.getMonth()+1}/${d.getDate()}`;
+      const bar = '█'.repeat(Math.round(pct/10)) + '░'.repeat(10 - Math.round(pct/10));
+      html += `<div>${label} ${bar} ${pct}%</div>`;
+    }
+  }
+  if (!html) html = '<div style="text-align:center;color:#999;">还没有历史记录</div>';
+  stats.innerHTML = html;
+}
+
+// ============================================================
+//  模块2: 选题灵感
+// ============================================================
+function getDefaultTopics() {
+  return {
+    date: todayKey(),
+    updateTime: new Date().toISOString(),
+    topics: [
+      { title:'宝妈带娃崩溃瞬间，你中了几条？', tags:['宝妈日常','共鸣'], desc:'盘点带娃最崩溃的5个瞬间，引发同频宝妈共鸣。关联点：每个崩溃背后都是妈妈的爱。' },
+      { title:'孩子睡着后，我偷偷做了这件事', tags:['宝妈搞钱','副业'], desc:'夜深人静孩子睡了，宝妈副业搞钱的时间到了。关联点：努力活着不只是口号。' },
+      { title:'从手心向上到手心向下，我用了多久', tags:['女性成长','经济独立'], desc:'记录从伸手要钱到自己赚钱的心理变化。关联点：赚钱的欲望是最好的动力。' },
+      { title:'今天孩子说了一句话，我破防了', tags:['亲子','金句'], desc:'孩子无意间的一句话，让努力搞钱的妈妈红了眼眶。关联点：娃是我的底气。' },
+      { title:'月薪3千和副业过万，我选了后者', tags:['宝妈副业','自媒体'], desc:'记录做自媒体的心路历程，不吹嘘收入，只谈真实感受。关联点：还没赚到但欲望很强。' },
+      { title:'那些带娃时想放弃的瞬间', tags:['宝妈心态','正能量'], desc:'带娃疲惫想放弃时，是什么让我坚持。关联点：努力活着的正能量。' },
+      { title:'孩子你慢点长大，妈妈还在努力', tags:['亲子','成长'], desc:'写给孩子的信，妈妈在努力成为更好的人。关联点：娃是前进的动力。' },
+      { title:'全职妈妈的一天，比上班还累', tags:['宝妈日常','共鸣'], desc:'从早到晚的真实记录，引发宝妈群体共鸣。关联点：柴米油盐里的坚强。' },
+      { title:'我为什么开始做自媒体', tags:['宝妈创业','初心'], desc:'回顾做自媒体的初心，赚钱+成长+给孩子更好的生活。关联点：真实不装。' },
+      { title:'当了妈才知道的10件事', tags:['宝妈感悟','通透'], desc:'当妈后的感悟金句，每句都戳心。关联点：用通透的视角看宝妈生活。' }
+    ]
+  };
+}
+
+function loadTopics() {
+  const cached = Store.get('topics', null);
+  if (cached && cached.date === todayKey()) {
+    renderTopics(cached);
+  } else if (CONFIG.GIST_URL) {
+    fetchGistData().then(data => {
+      if (data && data.topics) {
+        Store.set('topics', data);
+        renderTopics(data);
+      } else {
+        renderTopics(getDefaultTopics());
+      }
+    }).catch(() => renderTopics(getDefaultTopics()));
+  } else {
+    renderTopics(getDefaultTopics());
+  }
+}
+
+function renderTopics(data) {
+  const list = document.getElementById('topicList');
+  const time = data.updateTime ? new Date(data.updateTime).toLocaleString('zh-CN') : '';
+  document.getElementById('topicUpdateTime').textContent = time ? `更新于 ${time}` : '';
+  list.innerHTML = '';
+  data.topics.forEach((t, i) => {
+    const card = document.createElement('div');
+    card.className = 'topic-card';
+    const keyword = encodeURIComponent(t.title);
+    card.innerHTML = `
+      <div class="topic-head">
+        <div class="topic-num">${i+1}</div>
+        <div class="topic-title">${escapeHtml(t.title)}</div>
+      </div>
+      <div class="topic-tags">${(t.tags||[]).map(tag=>`<span class="tag">${escapeHtml(tag)}</span>`).join('')}</div>
+      <div class="topic-desc">${escapeHtml(t.desc)}</div>
+      <div class="topic-actions">
+        <button class="jump-btn dy" onclick="jumpTo('dy','${keyword}')">抖音</button>
+        <button class="jump-btn bili" onclick="jumpTo('bili','${keyword}')">B站</button>
+        <button class="jump-btn xhs" onclick="jumpTo('xhs','${keyword}')">小红书</button>
+        <button class="jump-btn kw" onclick="jumpTo('kw','${keyword}')">夸克</button>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+// ============================================================
+//  模块3: 热点二创
+// ============================================================
+function getDefaultHot() {
+  return {
+    date: todayKey(),
+    updateTime: new Date().toISOString(),
+    items: [
+      { source:'star', sourceLabel:'明星发言', title:'某明星谈育儿：当妈妈比当明星难', angle:'关联宝妈日常：把明星的话翻译成宝妈视角，"是啊，当妈这件事，没有彩排，每天都是现场直播。"', copyTitle:'当妈后我懂了', copyOriginal:'当妈妈比当明星难——某明星', copyText:'当妈妈比当明星难\n这话我信了\n因为当明星有剧本\n当妈 全是现场直播\n\n没有NG的机会\n孩子哭了你得接着\n累了不能替班\n委屈了没人看见\n\n但你看 我还在努力\n不是因为不累\n是因为怀里这个小人儿\n值得我拼尽全力' },
+      { source:'song', sourceLabel:'热门歌曲', title:'《孤勇者》——谁说站在光里的才算英雄', angle:'关联宝妈搞钱：宝妈就是生活里的孤勇者，不在光里但也在战斗。关联柴米油盐和自媒体。', copyTitle:'谁说带娃的妈不算英雄', copyOriginal:'谁说站在光里的才算英雄——《孤勇者》', copyText:'谁说站在光里的才算英雄\n我每天在厨房在客厅在卧室\n战斗\n\n围裙是我的披风\n奶瓶是我的武器\n孩子的笑脸是我的勋章\n\n你问我累吗\n累 但你看\n我在为自己而战\n为这个家而战\n\n赚钱的欲望推着我往前走\n不是贪心\n是想给孩子更好的生活' },
+      { source:'news', sourceLabel:'新闻热点', title:'某地宝妈兼职月入过万引热议', angle:'不吹嘘收入，谈真实感受。关联点：我也想做但还没赚到钱，赚钱欲望强烈，记录真实过程。', copyTitle:'月入过万？我先说真话', copyOriginal:'宝妈兼职月入过万——新闻', copyText:'又看到月入过万的新闻了\n我当妈到现在\n自媒体还没赚到一分钱\n\n但我不想说假话\n不想编造不存在的收入\n我赚钱的欲望很强烈\n强烈到每天孩子睡了\n我还坐在手机前\n\n也许明天就赚到第一块钱了\n也许还要很久\n但你看 妈妈在努力\n这件事\n本身就很了不起' },
+      { source:'dy', sourceLabel:'抖音热榜', title:'#当妈后的变化# 上热搜', angle:'关联宝妈日常变化，从外貌到心态。用通透金句串联，结尾落到搞钱和成长。', copyTitle:'当妈后 我变了', copyOriginal:'#当妈后的变化# 抖音热搜', copyText:'当妈后\n我学会了边吃饭边抱娃\n学会了睁眼就干活\n学会了把哭咽回去\n\n但我也学会了\n在缝隙里给自己找光\n在疲惫里给自己找希望\n在柴米油盐里\n给自己留一个赚钱的梦\n\n当妈 不是终点\n是另一个起点\n我是妈妈\n也是正在生长的我' },
+      { source:'star', sourceLabel:'明星发言', title:'某女演员：当了妈才知道什么是真正的坚强', angle:'把明星金句和宝妈日常关联，用孩子照片配通透文案，调整说话人称避免违和。', copyTitle:'真正的坚强', copyOriginal:'当了妈才知道什么是真正的坚强——某女演员', copyText:'她说当了妈才知道坚强\n我当了妈才知道\n坚强是 哭着也要把奶温好\n坚强是 累瘫了也要检查作业\n坚强是 想放弃时看一眼娃\n又咬牙撑过去了\n\n你看 当妈这件事\n让我们都变成了\n自己以前最佩服的那种人' },
+      { source:'song', sourceLabel:'热门歌曲', title:'《如愿》——你心我生长的方向', angle:'关联亲子成长，妈妈努力的方向就是孩子的未来。关联宝妈成长和搞钱动力。', copyTitle:'我心生长的方向', copyOriginal:'你心我生长的方向——《如愿》', copyText:'你是我心生长的方向\n也是我拼命的理由\n\n我想给你更好的生活\n不是溺爱\n是让你有底气去闯\n\n所以我在努力 在赚钱\n在自媒体这条路上\n跌跌撞撞\n\n也许慢了点\n但方向 从来没错' },
+      { source:'news', sourceLabel:'通透句库', title:'人民日报金句：所有的努力都不会被辜负', angle:'关联宝妈搞钱路，还没有赚到钱但相信努力。用孩子照片配金句，调整人称。', copyTitle:'努力不会被辜负', copyOriginal:'所有的努力都不会被辜负——人民日报', copyText:'所有的努力都不会被辜负\n这句话我贴在手机壁纸上\n\n当妈后 我做了很多\n没人看见的事\n但我自己知道\n每一个深夜的坚持\n每一次想哭又忍住\n\n还没赚到钱 但我相信\n走过的路 都算数' },
+      { source:'bili', sourceLabel:'B站热门', title:'全职妈妈的100种可能', angle:'关联宝妈搞钱和自媒体，展示全职妈妈也可以有副业。用通透文案串联。', copyTitle:'全职妈妈的一百种可能', copyOriginal:'全职妈妈的100种可能 B站热门', copyText:'全职妈妈\n不只有一种活法\n\n我见过带娃做自媒体的\n我见过孩子睡了写文案的\n我见过一手奶瓶一手手机的\n\n我不是例外\n我是其中之一\n在柴米油盐里\n在喂奶换尿布间\n我在给自己 拼一个可能' },
+      { source:'song', sourceLabel:'热门歌曲', title:'《起风了》——逆着风行走', angle:'关联宝妈逆风前行的状态，搞钱路上不顺利但依然坚持。文案通透有力量。', copyTitle:'逆着风 走', copyOriginal:'逆着风行走——《起风了》', copyText:'逆着风 走\n当妈后我常这样\n\n收入不稳 孩子要带\n家里事多 外面要拼\n每一步都是逆风\n\n但你看\n逆风走的妈妈\n走得慢 但走得稳\n走得累 但走得真\n\n总有一天 风会转向\n那时 我已经走了很远' },
+      { source:'star', sourceLabel:'明星发言', title:'某明星：女性的力量被低估了', angle:'关联宝妈搞钱和女性成长，用孩子照片配通透文案，突出宝妈的坚韧和搞钱决心。', copyTitle:'被低估的力量', copyOriginal:'女性的力量被低估了——某明星', copyText:'女性的力量被低估了\n我信\n\n因为当妈后我发现\n我能一边抱娃一边回消息\n我能一边做饭一边想选题\n我能在崩溃后第二天\n笑着继续\n\n这力量 没人标价\n但我知道 它很值钱\n所以我拿它去拼\n去搞钱 去生长\n去成为 自己佩服的人' }
+    ]
+  };
+}
+
+function loadHot() {
+  const cached = Store.get('hot', null);
+  if (cached && cached.date === todayKey()) {
+    renderHot(cached);
+  } else if (CONFIG.GIST_URL) {
+    fetchGistData().then(data => {
+      if (data && data.hot) {
+        Store.set('hot', data.hot);
+        renderHot(data.hot);
+      } else {
+        renderHot(getDefaultHot());
+      }
+    }).catch(() => renderHot(getDefaultHot()));
+  } else {
+    renderHot(getDefaultHot());
+  }
+}
+
+function renderHot(data) {
+  const list = document.getElementById('hotList');
+  const time = data.updateTime ? new Date(data.updateTime).toLocaleString('zh-CN') : '';
+  document.getElementById('hotUpdateTime').textContent = time ? `更新于 ${time}` : '';
+  list.innerHTML = '';
+  data.items.forEach((h, i) => {
+    const card = document.createElement('div');
+    card.className = 'hot-card';
+    const keyword = encodeURIComponent(h.title);
+    card.innerHTML = `
+      <span class="hot-source ${h.source}">${escapeHtml(h.sourceLabel)}</span>
+      <div class="hot-title">${i+1}. ${escapeHtml(h.title)}</div>
+      <div class="hot-angle">${escapeHtml(h.angle)}</div>
+      ${h.copyOriginal ? `<div class="hot-copy-original">原句：${escapeHtml(h.copyOriginal)}</div>` : ''}
+      ${h.copyText ? `<div class="hot-copy-label">📝 二创文案（可直接用）</div><div class="hot-copy">${escapeHtml(h.copyText)}</div>` : ''}
+      <div class="hot-actions">
+        <button class="hot-btn" onclick="copyText('${escapeHtml(h.copyText||'').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/\n/g,'\\n')}')">复制文案</button>
+        <button class="hot-btn" onclick="jumpTo('dy','${keyword}')">看抖音</button>
+        <button class="hot-btn filled" onclick="jumpTo('xhs','${keyword}')">看小红书</button>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function copyText(text) {
+  const decoded = text.replace(/\\n/g, '\n').replace(/&quot;/g, '"');
+  navigator.clipboard.writeText(decoded).then(() => toast('文案已复制！')).catch(() => {
+    // 降级方案
+    const ta = document.createElement('textarea');
+    ta.value = decoded;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('文案已复制！');
+  });
+}
+
+// ============================================================
+//  App跳转
+// ============================================================
+function jumpTo(platform, keyword) {
+  const k = decodeURIComponent(keyword);
+  let url;
+  switch(platform) {
+    case 'dy':
+      // 抖音：先尝试App Scheme，失败则打开网页搜索
+      url = `snssdk1128://search?keyword=${keyword}`;
+      tryOpenApp(url, `https://www.douyin.com/search/${keyword}`);
+      break;
+    case 'bili':
+      url = `bilibili://search?keyword=${keyword}`;
+      tryOpenApp(url, `https://search.bilibili.com/all?keyword=${keyword}`);
+      break;
+    case 'xhs':
+      url = `xhsdiscover://search?keyword=${keyword}`;
+      tryOpenApp(url, `https://www.xiaohongshu.com/search_result?keyword=${keyword}`);
+      break;
+    case 'kw':
+      // 夸克：直接搜索
+      window.open(`https://quark.sm.cn/s?q=${keyword}`, '_blank');
+      break;
+  }
+}
+
+function tryOpenApp(scheme, fallback) {
+  let visited = false;
+  const timeout = setTimeout(() => {
+    if (!visited && document.hidden) {
+      visited = true;
+    } else if (!visited) {
+      window.open(fallback, '_blank');
+    }
+  }, 800);
+  // 用iframe唤起App
+  const iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = scheme;
+  document.body.appendChild(iframe);
+  setTimeout(() => document.body.removeChild(iframe), 2000);
+}
+
+// ============================================================
+//  Gist数据读取
+// ============================================================
+async function fetchGistData() {
+  if (!CONFIG.GIST_URL) return null;
+  try {
+    const resp = await fetch(CONFIG.GIST_URL + '?t=' + Date.now());
+    if (!resp.ok) throw new Error('Gist fetch failed');
+    return await resp.json();
+  } catch(e) {
+    console.warn('Gist读取失败:', e.message);
+    return null;
+  }
+}
+
+async function refreshFromGist() {
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('spinning');
+  if (CONFIG.GIST_URL) {
+    const data = await fetchGistData();
+    if (data) {
+      if (data.topics) Store.set('topics', data.topics);
+      if (data.hot) Store.set('hot', data.hot);
+      toast('数据已刷新！');
+      const activePage = document.querySelector('.page.active')?.id?.replace('page-','');
+      if (activePage === 'topic') renderTopics(data.topics || getDefaultTopics());
+      if (activePage === 'hot') renderHot(data.hot || getDefaultHot());
+    } else {
+      toast('Gist未配置或读取失败，显示默认内容');
+    }
+  } else {
+    // 无Gist，重新加载默认内容
+    toast('显示内置内容（配置Gist后可自动更新）');
+    const activePage = document.querySelector('.page.active')?.id?.replace('page-','');
+    if (activePage === 'topic') renderTopics(getDefaultTopics());
+    if (activePage === 'hot') renderHot(getDefaultHot());
+  }
+  btn.classList.remove('spinning');
+}
+
+// ============================================================
+//  模块4: 内容复盘
+// ============================================================
+function loadReview() {
+  const today = todayKey();
+  const data = Store.get('review_' + today, { plays:'', likes:'', comments:'', shares:'', highlights:'', problems:'', optimization:'' });
+  document.getElementById('rv-plays').value = data.plays || '';
+  document.getElementById('rv-likes').value = data.likes || '';
+  document.getElementById('rv-comments').value = data.comments || '';
+  document.getElementById('rv-shares').value = data.shares || '';
+  document.getElementById('rv-highlights').value = data.highlights || '';
+  document.getElementById('rv-problems').value = data.problems || '';
+  document.getElementById('rv-optimization').value = data.optimization || '';
+
+  // 历史复盘
+  const history = document.getElementById('reviewHistory');
+  let html = '<div class="card-title"><span class="emoji">📖</span> 历史复盘</div>';
+  let hasHistory = false;
+  for (let i = 1; i <= 30; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = `review_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const r = Store.get(key, null);
+    if (r) {
+      hasHistory = true;
+      const label = `${d.getMonth()+1}/${d.getDate()}`;
+      const total = (parseInt(r.plays)||0) + (parseInt(r.likes)||0) + (parseInt(r.comments)||0) + (parseInt(r.shares)||0);
+      html += `<div style="padding:8px 0;border-bottom:1px solid #f7f7f7;font-size:13px;">
+        <div style="font-weight:600;color:var(--pink);">${label}</div>
+        <div style="color:#666;margin:4px 0;">▶️${r.plays||0} ❤️${r.likes||0} 💬${r.comments||0} 🔄${r.shares||0}</div>
+        ${r.highlights?`<div style="color:#4CAF50;">✨ ${escapeHtml(r.highlights.substring(0,50))}</div>`:''}
+        ${r.problems?`<div style="color:#FF6B6B;">⚠️ ${escapeHtml(r.problems.substring(0,50))}</div>`:''}
+      </div>`;
+    }
+  }
+  if (!hasHistory) html += '<div style="text-align:center;color:#999;font-size:13px;padding:10px;">还没有历史复盘</div>';
+  history.innerHTML = html;
+}
+
+function saveReview() {
+  const today = todayKey();
+  const data = {
+    plays: document.getElementById('rv-plays').value,
+    likes: document.getElementById('rv-likes').value,
+    comments: document.getElementById('rv-comments').value,
+    shares: document.getElementById('rv-shares').value,
+    highlights: document.getElementById('rv-highlights').value,
+    problems: document.getElementById('rv-problems').value,
+    optimization: document.getElementById('rv-optimization').value
+  };
+  Store.set('review_' + today, data);
+  const btn = document.getElementById('reviewSaveBtn');
+  btn.textContent = '已保存 ✓';
+  btn.classList.add('saved');
+  setTimeout(() => { btn.textContent = '保存复盘'; btn.classList.remove('saved'); }, 2000);
+  toast('复盘已保存');
+}
+
+// ============================================================
+//  模块5: 备忘录
+// ============================================================
+function getMemo() {
+  return Store.get('memo', [
+    {text:'', done:false},{text:'', done:false},{text:'', done:false},
+    {text:'', done:false},{text:'', done:false}
+  ]);
+}
+
+function renderMemo() {
+  const memo = getMemo();
+  const list = document.getElementById('memoList');
+  list.innerHTML = '';
+  memo.forEach((item, i) => {
+    const div = document.createElement('div');
+    div.className = 'memo-item';
+    div.innerHTML = `
+      <div class="checkbox ${item.done?'checked':''}" onclick="toggleMemo(${i})"></div>
+      <input class="memo-input ${item.done?'done':''}" value="${escapeHtml(item.text)}" onchange="updateMemo(${i}, this.value)" placeholder="记点什么...">
+      <span class="btn-del" onclick="delMemo(${i})">×</span>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function toggleMemo(i) {
+  const memo = getMemo();
+  memo[i].done = !memo[i].done;
+  Store.set('memo', memo);
+  renderMemo();
+}
+
+function updateMemo(i, val) {
+  const memo = getMemo();
+  memo[i].text = val;
+  Store.set('memo', memo);
+}
+
+function addMemoItem() {
+  const memo = getMemo();
+  memo.push({text:'', done:false});
+  Store.set('memo', memo);
+  renderMemo();
+}
+
+function delMemo(i) {
+  const memo = getMemo();
+  if (memo.length <= 1) { toast('至少保留一条'); return; }
+  memo.splice(i, 1);
+  Store.set('memo', memo);
+  renderMemo();
+}
+
+// ============================================================
+//  模块6: 速算练习
+// ============================================================
+let calcState = { a:0, b:0, op:'+', correct:0, wrong:0, streak:0, startTime:0, level:'mixed', timer:null };
+
+function initCalc() {
+  const settings = document.getElementById('calcSettings');
+  const levels = [
+    {key:'add', label:'加法'},
+    {key:'sub', label:'减法'},
+    {key:'mul', label:'乘法'},
+    {key:'mixed', label:'混合'}
+  ];
+  settings.innerHTML = levels.map(l => 
+    `<button class="calc-set-btn ${calcState.level===l.key?'active':''}" onclick="setCalcLevel('${l.key}')">${l.label}</button>`
+  ).join('');
+
+  // 导入区域
+  const importArea = document.getElementById('calcImportArea');
+  importArea.innerHTML = `
+    <div style="font-size:13px;color:var(--text-light);margin-bottom:8px;">从微信专辑导入题目：</div>
+    <button class="btn btn-outline" style="width:100%;" onclick="importWechatCalc()">导入微信文章题目</button>
+    <div style="font-size:11px;color:#999;margin-top:4px;">粘贴微信文章内容，自动提取数字生成速算题</div>
+  `;
+
+  const saved = Store.get('calcStats', {correct:0, wrong:0, streak:0});
+  calcState.correct = saved.correct; calcState.wrong = saved.wrong; calcState.streak = saved.streak;
+  updateCalcStats();
+  newCalcQuestion();
+}
+
+function setCalcLevel(level) {
+  calcState.level = level;
+  initCalc();
+}
+
+function newCalcQuestion() {
+  const max = 20;
+  let a, b, op;
+  if (calcState.level === 'add') { a = Math.floor(Math.random()*max)+1; b = Math.floor(Math.random()*max)+1; op = '+'; }
+  else if (calcState.level === 'sub') { a = Math.floor(Math.random()*max)+10; b = Math.floor(Math.random()*(a-1))+1; op = '-'; }
+  else if (calcState.level === 'mul') { a = Math.floor(Math.random()*9)+2; b = Math.floor(Math.random()*9)+2; op = '×'; }
+  else { const ops = ['+','-','×']; op = ops[Math.floor(Math.random()*3)]; if(op==='+'){a=Math.floor(Math.random()*max)+1;b=Math.floor(Math.random()*max)+1;} else if(op==='-'){a=Math.floor(Math.random()*max)+10;b=Math.floor(Math.random()*(a-1))+1;} else {a=Math.floor(Math.random()*9)+2;b=Math.floor(Math.random()*9)+2;} }
+
+  calcState.a = a; calcState.b = b; calcState.op = op;
+  document.getElementById('calcQuestion').textContent = `${a} ${op} ${b} = ?`;
+  const input = document.getElementById('calcInput');
+  input.value = ''; input.classList.remove('wrong');
+  input.focus();
+  if (!calcState.startTime) calcState.startTime = Date.now();
+  if (calcState.timer) clearInterval(calcState.timer);
+  calcState.timer = setInterval(() => {
+    const sec = Math.floor((Date.now() - calcState.startTime) / 1000);
+    document.getElementById('calcTime').textContent = sec + 's';
+  }, 1000);
+}
+
+function checkCalc() {
+  const input = document.getElementById('calcInput');
+  const val = parseInt(input.value);
+  if (isNaN(val)) { toast('请输入数字'); return; }
+  let answer;
+  if (calcState.op === '+') answer = calcState.a + calcState.b;
+  else if (calcState.op === '-') answer = calcState.a - calcState.b;
+  else if (calcState.op === '×') answer = calcState.a * calcState.b;
+
+  if (val === answer) {
+    calcState.correct++; calcState.streak++;
+    toast('✓ 答对了！');
+  } else {
+    calcState.wrong++; calcState.streak = 0;
+    input.classList.add('wrong');
+    toast(`✗ 答案是 ${answer}`);
+  }
+  Store.set('calcStats', {correct:calcState.correct, wrong:calcState.wrong, streak:calcState.streak});
+  updateCalcStats();
+  setTimeout(newCalcQuestion, 800);
+}
+
+function updateCalcStats() {
+  document.getElementById('calcCorrect').textContent = calcState.correct;
+  document.getElementById('calcWrong').textContent = calcState.wrong;
+  document.getElementById('calcStreak').textContent = calcState.streak;
+}
+
+function importWechatCalc() {
+  const text = prompt('粘贴微信文章内容（包含数字的段落）：\n（会自动提取数字生成速算题）');
+  if (!text) return;
+  const numbers = text.match(/\d+/g)?.map(Number) || [];
+  if (numbers.length < 2) { toast('未提取到足够的数字'); return; }
+  const a = numbers[Math.floor(Math.random()*numbers.length)];
+  const b = numbers[Math.floor(Math.random()*numbers.length)];
+  const ops = ['+','-','×'];
+  const op = ops[Math.floor(Math.random()*3)];
+  calcState.a = a;
+  calcState.b = b;
+  calcState.op = op;
+  document.getElementById('calcQuestion').textContent = `${a} ${op} ${b} = ?`;
+  document.getElementById('calcInput').value = '';
+  document.getElementById('calcInput').focus();
+  toast('已从文章导入数字！');
+}
+
+// ============================================================
+//  模块7: 英语练习
+// ============================================================
+const ENG_DATA = {
+  plan: [
+    { week:'第1-2周', topic:'音标入门', detail:'学习26个字母+48个音标，每天3个音标，跟读标准发音', task:'每天跟读3个音标×10遍' },
+    { week:'第3-4周', topic:'日常高频词', detail:'每天学5个日常高频词（I/you/eat/sleep/child等），掌握发音+意思', task:'每天5个单词+造句' },
+    { week:'第5-6周', topic:'简单句型', detail:'主谓宾结构：I eat. You sleep. He plays. 每天学2个句型', task:'每天用新句型造3个句子' },
+    { week:'第7-8周', topic:'日常对话', detail:'自我介绍、买东西、问路等场景对话，每天1个场景', task:'每天影子跟读1段对话' },
+    { week:'第9-10周', topic:'短文阅读', detail:'读简单的英语小短文，每天1篇，查生词+跟读', task:'每天1篇短文+影子跟读' },
+    { week:'第11-12周', topic:'输出练习', detail:'每天用英语写3句话日记，记录宝妈日常', task:'每天3句英语日记' }
+  ],
+  words: [
+    { word:'mother', phonetic:'/ˈmʌðər/', meaning:'n. 母亲；妈妈' },
+    { word:'child', phonetic:'/tʃaɪld/', meaning:'n. 孩子；小孩' },
+    { word:'effort', phonetic:'/ˈefərt/', meaning:'n. 努力；尽力' },
+    { word:'strong', phonetic:'/strɔːŋ/', meaning:'adj. 坚强的；强壮的' },
+    { word:'grow', phonetic:'/ɡroʊ/', meaning:'v. 成长；生长' },
+    { word:'earn', phonetic:'/ɜːrn/', meaning:'v. 赚得；挣钱' },
+    { word:'life', phonetic:'/laɪf/', meaning:'n. 生活；生命' },
+    { word:'hope', phonetic:'/hoʊp/', meaning:'n./v. 希望' },
+    { word:'love', phonetic:'/lʌv/', meaning:'n./v. 爱' },
+    { word:'brave', phonetic:'/breɪv/', meaning:'adj. 勇敢的' }
+  ],
+  grammar: [
+    { title:'主谓宾（最基础句型）', body:'结构：主语 + 谓语动词 + 宾语\n\nI love you.（我爱你）\nYou eat apples.（你吃苹果）\nShe works hard.（她努力工作）', example:'I raise my child.（我养我的孩子）' },
+    { title:'一般现在时', body:'表示日常习惯、客观事实。第三人称单数加s/es。\n\nI work. → She works.\nI study. → He studies.', example:'I earn money every day.（我每天赚钱）' },
+    { title:'be动词用法', body:'am/is/are\nI am a mother.（我是妈妈）\nShe is strong.（她很坚强）\nThey are children.（他们是孩子）', example:'I am a brave mother.（我是一个勇敢的妈妈）' },
+    { title:'情态动词can', body:'can + 动词原形，表示"能、可以"\n\nI can do it.（我能做到）\nYou can learn.（你能学会）', example:'I can earn money.（我能赚钱）' }
+  ],
+  shadow: [
+    { title:'宝妈日常英语-自我介绍', text:'Hello, I am a mother. I have a child. I work hard every day. I want to earn money for my family. I am brave and strong.' },
+    { title:'给孩子的话', text:'You are my sunshine. You make me strong. I will work hard for you. I love you forever. You are my best gift.' },
+    { title:'努力生活的金句', text:'Life is not easy, but I am strong. Every day is a new start. I will not give up. I believe in myself. My effort will pay off.' }
+  ]
+};
+
+let engTab = 'plan';
+
+function initEnglish() {
+  document.querySelectorAll('.eng-tab').forEach(t => {
+    t.onclick = () => {
+      document.querySelectorAll('.eng-tab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      engTab = t.dataset.etag;
+      renderEnglish();
+    };
+  });
+  renderEnglish();
+}
+
+function renderEnglish() {
+  const content = document.getElementById('engContent');
+  if (engTab === 'plan') {
+    content.innerHTML = ENG_DATA.plan.map(p => `
+      <div class="eng-grammar">
+        <div class="g-title">📅 ${escapeHtml(p.week)} - ${escapeHtml(p.topic)}</div>
+        <div class="g-body" style="white-space:pre-line;">${escapeHtml(p.detail)}</div>
+        <div class="g-example">📌 ${escapeHtml(p.task)}</div>
+      </div>
+    `).join('');
+  } else if (engTab === 'word') {
+    content.innerHTML = `<div style="margin-bottom:10px;font-size:13px;color:var(--text-light);">点击"朗读"按钮听发音，跟读3遍</div>` + ENG_DATA.words.map(w => `
+      <div class="eng-word">
+        <div class="word">${escapeHtml(w.word)}</div>
+        <div class="phonetic">${escapeHtml(w.phonetic)}</div>
+        <div class="meaning">${escapeHtml(w.meaning)}</div>
+        <div class="word-actions">
+          <button class="eng-audio-btn" onclick="speakWord('${escapeHtml(w.word)}')">🔊 朗读</button>
+          <button class="eng-audio-btn" onclick="speakWord('${escapeHtml(w.word)}',0.5)">🐌 慢速</button>
+          <button class="eng-audio-btn" onclick="speakWord('${escapeHtml(w.word)}',0.8,true)">🎤 逐字跟读</button>
+        </div>
+      </div>
+    `).join('');
+  } else if (engTab === 'grammar') {
+    content.innerHTML = ENG_DATA.grammar.map(g => `
+      <div class="eng-grammar">
+        <div class="g-title">📖 ${escapeHtml(g.title)}</div>
+        <div class="g-body" style="white-space:pre-line;">${escapeHtml(g.body)}</div>
+        <div class="g-example">💡 例句：${escapeHtml(g.example)}</div>
+        <div class="word-actions" style="margin-top:8px;">
+          <button class="eng-audio-btn" onclick="speakWord('${escapeHtml(g.example)}')">🔊 读例句</button>
+        </div>
+      </div>
+    `).join('');
+  } else if (engTab === 'shadow') {
+    content.innerHTML = `
+      <div class="eng-search-bar">
+        <input class="eng-search-input" id="engSearchInput" placeholder="搜索影子跟读素材..." onkeyup="if(event.key==='Enter')searchShadow()">
+        <button class="eng-search-btn" onclick="searchShadow()">搜索</button>
+      </div>
+      <div id="shadowResults">
+        ${ENG_DATA.shadow.map(s => renderShadowCard(s)).join('')}
+      </div>
+    `;
+  }
+}
+
+function renderShadowCard(s) {
+  const safeText = escapeHtml(s.text).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+  return `
+    <div class="eng-shadow">
+      <div class="s-title">🎙️ ${escapeHtml(s.title)}</div>
+      <div class="s-text">${escapeHtml(s.text)}</div>
+      <div class="eng-shadow-controls">
+        <button class="eng-shadow-btn play" onclick="speakWord('${safeText}')">▶ 播放全文</button>
+        <button class="eng-shadow-btn speak" onclick="speakWord('${safeText}',0.7,true)">🎤 逐字跟读</button>
+        <button class="eng-shadow-btn stop" onclick="stopSpeak()">⏹ 停止</button>
+      </div>
+    </div>
+  `;
+}
+
+function searchShadow() {
+  const q = document.getElementById('engSearchInput').value.trim().toLowerCase();
+  const results = document.getElementById('shadowResults');
+  if (!q) {
+    results.innerHTML = ENG_DATA.shadow.map(s => renderShadowCard(s)).join('');
+    return;
+  }
+  const filtered = ENG_DATA.shadow.filter(s => s.title.toLowerCase().includes(q) || s.text.toLowerCase().includes(q));
+  if (filtered.length === 0) {
+    results.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">未找到相关素材</div><div class="empty-sub">试试搜索：mother, child, strong 等</div></div>`;
+  } else {
+    results.innerHTML = filtered.map(s => renderShadowCard(s)).join('');
+  }
+}
+
+// 语音朗读
+let speechTimer = null;
+function speakWord(text, rate, charByChar) {
+  if (!window.speechSynthesis) { toast('浏览器不支持语音'); return; }
+  window.speechSynthesis.cancel();
+
+  if (charByChar) {
+    // 逐字/逐词跟读
+    const words = text.split(/(\s+)/);
+    let i = 0;
+    function speakNext() {
+      if (i >= words.length) return;
+      const w = words[i];
+      if (w.trim()) {
+        const u = new SpeechSynthesisUtterance(w);
+        u.lang = 'en-US';
+        u.rate = rate || 0.8;
+        u.onend = () => {
+          i++;
+          speechTimer = setTimeout(speakNext, 300);
+        };
+        window.speechSynthesis.speak(u);
+      } else {
+        i++;
+        speakNext();
+      }
+    }
+    speakNext();
+    toast('逐字跟读中...点击停止可中断');
+  } else {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US';
+    u.rate = rate || 0.9;
+    window.speechSynthesis.speak(u);
+  }
+}
+
+function stopSpeak() {
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  if (speechTimer) { clearTimeout(speechTimer); speechTimer = null; }
+  toast('已停止');
+}
+
+// ============================================================
+//  模块8: 猜字谜
+// ============================================================
+const RIDDLES = [
+  // 两个字拆一半，剩下部分组成新字
+  // 格式：{word1, word2, take1(从word1取哪部分), take2, answer, clue}
+  { word1:'吴', word2:'天', part1:'口', part2:'口', answer:'吞', clue:'吴<strong class="highlight">走</strong>了天，剩下什么字？', hint:'吴的上半部分+天的下半部分' },
+  { word1:'蝉', word2:'单', part1:'虫', part2:'甲', answer:'蝉', clue:'蝉走了单', hint:'这是示范题~看看规律' },
+  { word1:'林', word2:'夕', part1:'木', part2:'夕', answer:'梦', clue:'林走一半，夕走一半', hint:'木+夕=？' },
+  { word1:'王', word2:'见', part1:'王', part2:'见', answer:'现', clue:'王见了一半', hint:'什么字有王和见？' },
+  { word1:'日', word2:'月', part1:'日', part2:'月', answer:'明', clue:'日走一半，月走一半', hint:'日+月=？' },
+  { word1:'女', word2:'子', part1:'女', part2:'子', answer:'好', clue:'女走一半，子走一半', hint:'女+子=？' },
+  { word1:'不', word2:'正', part1:'不', part2:'正', answer:'歪', clue:'不正', hint:'不+正=？' },
+  { word1:'小', word2:'大', part1:'小', part2:'大', answer:'尖', clue:'小走一半，大走一半', hint:'上小下大=？' },
+  { word1:'田', word2:'力', part1:'田', part2:'力', answer:'男', clue:'田走一半，力走一半', hint:'田+力=？' },
+  { word1:'白', word2:'水', part1:'白', part2:'水', answer:'泉', clue:'白水各一半', hint:'上白下水=？' },
+  { word1:'人', word2:'木', part1:'人', part2:'木', answer:'休', clue:'人走一半，木走一半', hint:'人靠木=？' },
+  { word1:'土', word2:'里', part1:'土', part2:'里', answer:'童', clue:'土里各一半', hint:'立+里=？' },
+  { word1:'弓', word2:'长', part1:'弓', part2:'长', answer:'张', clue:'弓走一半，长走一半', hint:'弓+长=？' },
+  { word1:'千', word2:'口', part1:'千', part2:'口', answer:'舌', clue:'千走一半，口走一半', hint:'千+口=？' },
+  { word1:'门', word2:'木', part1:'门', part2:'木', answer:'闲', clue:'门走一半，木走一半', hint:'门里有木=？' },
+  { word1:'十', word2:'口', part1:'十', part2:'口', answer:'古', clue:'十走一半，口走一半', hint:'十+口=？' },
+  { word1:'八', word2:'刀', part1:'八', part2:'刀', answer:'分', clue:'八走一半，刀走一半', hint:'八+刀=？' },
+  { word1:'禾', word2:'火', part1:'禾', part2:'火', answer:'秋', clue:'禾走一半，火走一半', hint:'禾+火=？' },
+  { word1:'此', word2:'木', part1:'此', part2:'木', answer:'柴', clue:'此木各一半', hint:'此+木=？' },
+  { word1:'亡', word2:'心', part1:'亡', part2:'心', answer:'忘', clue:'亡走一半，心走一半', hint:'亡+心=？' }
+];
+
+let riddleState = { index:0, correct:0, wrong:0, streak:0 };
+
+function initRiddle() {
+  const saved = Store.get('riddleStats', {correct:0, wrong:0, streak:0});
+  riddleState.correct = saved.correct; riddleState.wrong = saved.wrong; riddleState.streak = saved.streak;
+  riddleState.index = Math.floor(Math.random() * RIDDLES.length);
+  updateRiddleStats();
+  renderRiddle();
+}
+
+function renderRiddle() {
+  const r = RIDDLES[riddleState.index];
+  const content = document.getElementById('riddleContent');
+  content.innerHTML = `
+    <div class="riddle-card">
+      <div class="riddle-clue">${r.clue}</div>
+      <input class="riddle-input" id="riddleInput" type="text" maxlength="1" placeholder="?" onkeyup="if(event.key==='Enter')checkRiddle()">
+      <button class="riddle-btn" onclick="checkRiddle()">猜一猜</button>
+      <div class="riddle-hint" id="riddleHint">${r.hint}</div>
+    </div>
+  `;
+  document.getElementById('riddleInput').focus();
+}
+
+function checkRiddle() {
+  const input = document.getElementById('riddleInput');
+  const val = input.value.trim();
+  if (!val) { toast('输入一个字'); return; }
+  const r = RIDDLES[riddleState.index];
+  if (val === r.answer) {
+    riddleState.correct++; riddleState.streak++;
+    toast('✓ 猜对了！太棒了');
+  } else {
+    riddleState.wrong++; riddleState.streak = 0;
+    input.classList.add('wrong');
+    toast(`✗ 答案是「${r.answer}」`);
+  }
+  Store.set('riddleStats', {correct:riddleState.correct, wrong:riddleState.wrong, streak:riddleState.streak});
+  updateRiddleStats();
+  setTimeout(() => {
+    riddleState.index = (riddleState.index + 1) % RIDDLES.length;
+    renderRiddle();
+  }, 1200);
+}
+
+function updateRiddleStats() {
+  document.getElementById('riddleCorrect').textContent = riddleState.correct;
+  document.getElementById('riddleWrong').textContent = riddleState.wrong;
+  document.getElementById('riddleStreak').textContent = riddleState.streak;
+}
+
+// ============================================================
+//  关于
+// ============================================================
+function showAbout() {
+  const gistStatus = CONFIG.GIST_ID ? `已配置（${CONFIG.GIST_ID.substring(0,8)}...）` : '未配置';
+  alert(`宝妈创作工作台\n\n数据存储：浏览器本地（localStorage）\nGist状态：${gistStatus}\n\n功能：8大模块，离线可用\n更新：GitHub Actions 早8/下午2/晚8自动抓取热榜+AI改写\n\n人设：宝妈 · 勇闯自媒体 · 努力活着 · 赚钱养家`);
+}
+
+// ============================================================
+//  初始化
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  renderPlan();
+  // 预加载选题和热点
+  if (CONFIG.GIST_URL) {
+    refreshFromGist();
+  }
+});
+
+// 防止双击缩放
+document.addEventListener('touchstart', (e) => {
+  if (e.touches.length > 1) e.preventDefault();
+}, { passive: false });
+
+let lastTouch = 0;
+document.addEventListener('touchend', (e) => {
+  const now = Date.now();
+  if (now - lastTouch < 300) e.preventDefault();
+  lastTouch = now;
+}, { passive: false });
+</script>
+
+</body>
+</html>

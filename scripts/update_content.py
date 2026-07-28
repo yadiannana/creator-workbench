@@ -1,0 +1,464 @@
+#!/usr/bin/env python3
+"""
+宝妈创作工作台 - 每日自动更新脚本
+功能：
+1. 抓取抖音热榜、微博热搜、B站热门、百度热搜、知乎热榜
+2. 抓取指定微信专辑文章
+3. 用AI（或模板）改写成贴合"宝妈勇闯自媒体"赛道的内容
+4. 生成10条选题灵感 + 10条热点二创文案
+5. 输出到 data/creator-data.json，由 workflow 推送到 Gist
+"""
+
+import json
+import os
+import re
+import sys
+import time
+import datetime
+import urllib.parse
+import requests
+from bs4 import BeautifulSoup
+
+# ============================================================
+# 配置
+# ============================================================
+TODAY = datetime.date.today().strftime('%Y-%m-%d')
+NOW = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+
+# 微信专辑配置（需要用户填写）
+WECHAT_ALBUM_IDS = os.environ.get('WECHAT_ALBUM_IDS', '').split(',')
+WECHAT_ALBUM_IDS = [x.strip() for x in WECHAT_ALBUM_IDS if x.strip()]
+
+# AI API 配置（可选）
+AI_API_KEY = os.environ.get('AI_API_KEY', '')
+AI_API_URL = os.environ.get('AI_API_URL', '')
+
+# 宝妈人设描述（用于AI改写）
+PERSONA = """
+我的人设：
+- 宝妈，想赚钱，努力活着，有正能量
+- 每天文案配图：孩子户外/室内背影/侧面正面照片，少量母子合照
+- 文案来源：人民日报金句、通透句库、抖音热搜、明星发言、热门歌曲
+- 需要关联到：宝妈搞钱、女性成长、柴米油盐和自媒体
+- 还没赚到钱，但赚钱欲望非常强烈（不要写已赚广告费等不实内容）
+- 目标受众：25-40岁宝妈
+
+文案格式要求：
+- 标题要有钩子，要吸引要通透
+- 原文金句保留3-4句，个人感悟写2-3句
+- 合在一起做一个正文，放在图文上
+- 图文下方可写延伸性正文：长的10句，短的5-6句
+- 图片上方标题金句+解读感悟，总共不超过10句
+- 每句字数12-16字左右
+- 读着要有连贯性
+"""
+
+# ============================================================
+# 数据抓取
+# ============================================================
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'zh-CN,zh;q=0.9',
+}
+
+def fetch_douyin_hot():
+    """抓取抖音热榜"""
+    try:
+        # 抖音热榜API
+        url = 'https://www.douyin.com/aweme/v1/web/hot/search_list/'
+        resp = requests.get(url, headers=HEADERS, timeout=10)
+        data = resp.json()
+        items = []
+        for item in data.get('data', {}).get('word_list', [])[:15]:
+            items.append({
+                'title': item.get('word', ''),
+                'source': 'dy',
+                'sourceLabel': '抖音热榜',
+                'hot': item.get('position', 0)
+            })
+        return items
+    except Exception as e:
+        print(f"抖音热榜抓取失败: {e}")
+        return []
+
+def fetch_weibo_hot():
+    """抓取微博热搜"""
+    try:
+        url = 'https://weibo.com/ajax/side/hotSearch'
+        resp = requests.get(url, headers=HEADERS, timeout=10)
+        data = resp.json()
+        items = []
+        for item in data.get('data', {}).get('realtime', [])[:15]:
+            items.append({
+                'title': item.get('note', ''),
+                'source': 'weibo',
+                'sourceLabel': '微博热搜',
+                'hot': item.get('num', 0)
+            })
+        return items
+    except Exception as e:
+        print(f"微博热搜抓取失败: {e}")
+        return []
+
+def fetch_bili_hot():
+    """抓取B站热门"""
+    try:
+        url = 'https://api.bilibili.com/x/web-interface/search/square?keyword='
+        resp = requests.get(url, headers=HEADERS, timeout=10)
+        data = resp.json()
+        items = []
+        for item in data.get('data', {}).get('trending', {}).get('list', [])[:15]:
+            items.append({
+                'title': item.get('keyword', ''),
+                'source': 'bili',
+                'sourceLabel': 'B站热门',
+                'hot': 0
+            })
+        return items
+    except Exception as e:
+        print(f"B站热门抓取失败: {e}")
+        return []
+
+def fetch_baidu_hot():
+    """抓取百度热搜"""
+    try:
+        url = 'https://top.baidu.com/api/board?platform=wise&tab=realtime'
+        resp = requests.get(url, headers=HEADERS, timeout=10)
+        data = resp.json()
+        items = []
+        for item in data.get('data', {}).get('cards', [{}])[0].get('content', [])[:15]:
+            items.append({
+                'title': item.get('word', ''),
+                'source': 'baidu',
+                'sourceLabel': '百度热搜',
+                'hot': 0
+            })
+        return items
+    except Exception as e:
+        print(f"百度热搜抓取失败: {e}")
+        return []
+
+def fetch_zhihu_hot():
+    """抓取知乎热榜"""
+    try:
+        url = 'https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total?limit=15'
+        resp = requests.get(url, headers=HEADERS, timeout=10)
+        data = resp.json()
+        items = []
+        for item in data.get('data', [])[:15]:
+            target = item.get('target', {})
+            items.append({
+                'title': target.get('title', ''),
+                'source': 'zhihu',
+                'sourceLabel': '知乎热榜',
+                'hot': item.get('detail_text', '0')
+            })
+        return items
+    except Exception as e:
+        print(f"知乎热榜抓取失败: {e}")
+        return []
+
+def fetch_wechat_album():
+    """抓取微信专辑文章"""
+    items = []
+    for album_id in WECHAT_ALBUM_IDS:
+        try:
+            url = f'https://mp.weixin.qq.com/mp/appmsgalbum?__biz=&mid=&idx=&sn=&album_id={album_id}'
+            resp = requests.get(url, headers=HEADERS, timeout=15)
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            # 提取文章标题
+            articles = soup.select('.album__list-item')
+            for art in articles[:5]:
+                title = art.select_one('.album__item-title')
+                if title:
+                    items.append({
+                        'title': title.get_text(strip=True),
+                        'source': 'wechat',
+                        'sourceLabel': '微信专辑'
+                    })
+        except Exception as e:
+            print(f"微信专辑 {album_id} 抓取失败: {e}")
+    return items
+
+def fetch_all_hot():
+    """抓取所有热榜"""
+    all_hot = []
+    print("开始抓取热榜...")
+
+    # 并行抓取（顺序执行，超时控制）
+    sources = [
+        ('抖音', fetch_douyin_hot),
+        ('微博', fetch_weibo_hot),
+        ('B站', fetch_bili_hot),
+        ('百度', fetch_baidu_hot),
+        ('知乎', fetch_zhihu_hot),
+    ]
+
+    for name, func in sources:
+        try:
+            items = func()
+            all_hot.extend(items)
+            print(f"  {name}: {len(items)}条")
+        except Exception as e:
+            print(f"  {name} 抓取异常: {e}")
+
+    # 微信专辑
+    if WECHAT_ALBUM_IDS:
+        wechat_items = fetch_wechat_album()
+        all_hot.extend(wechat_items)
+        print(f"  微信专辑: {len(wechat_items)}条")
+    else:
+        print("  微信专辑: 未配置专辑ID")
+
+    print(f"共抓取 {len(all_hot)} 条热点")
+    return all_hot
+
+# ============================================================
+# AI改写
+# ============================================================
+def ai_rewrite(prompt, fallback_text=''):
+    """用AI API改写，失败则返回模板内容"""
+    if not AI_API_KEY:
+        return None
+
+    try:
+        # 兼容OpenAI格式的API
+        headers = {
+            'Authorization': f'Bearer {AI_API_KEY}',
+            'Content-Type': 'application/json'
+        }
+        payload = {
+            'model': 'gpt-3.5-turbo',
+            'messages': [
+                {'role': 'system', 'content': f'你是宝妈自媒体文案专家。{PERSONA}'},
+                {'role': 'user', 'content': prompt}
+            ],
+            'max_tokens': 500,
+            'temperature': 0.8
+        }
+        resp = requests.post(AI_API_URL or 'https://api.openai.com/v1/chat/completions',
+                           json=payload, headers=headers, timeout=30)
+        data = resp.json()
+        return data['choices'][0]['message']['content'].strip()
+    except Exception as e:
+        print(f"AI改写失败: {e}")
+        return None
+
+def generate_topics(hot_items):
+    """生成10条选题灵感"""
+    topics = []
+
+    # 宝妈赛道固定选题模板
+    base_topics = [
+        {'title': '宝妈带娃崩溃瞬间，你中了几条？', 'tags': ['宝妈日常', '共鸣'],
+         'desc': '盘点带娃最崩溃的5个瞬间，引发同频宝妈共鸣。关联：每个崩溃背后都是妈妈的爱。'},
+        {'title': '孩子睡着后，我偷偷做了这件事', 'tags': ['宝妈搞钱', '副业'],
+         'desc': '夜深人静孩子睡了，宝妈副业搞钱的时间到了。关联：努力活着不只是口号。'},
+        {'title': '从手心向上到手心向下，我用了多久', 'tags': ['女性成长', '经济独立'],
+         'desc': '记录从伸手要钱到自己赚钱的心理变化。关联：赚钱的欲望是最好的动力。'},
+        {'title': '今天孩子说了一句话，我破防了', 'tags': ['亲子', '金句'],
+         'desc': '孩子无意间的一句话，让努力搞钱的妈妈红了眼眶。关联：娃是我的底气。'},
+        {'title': '月薪3千和副业过万，我选了后者', 'tags': ['宝妈副业', '自媒体'],
+         'desc': '记录做自媒体的心路历程，不吹嘘收入，只谈真实感受。关联：还没赚到但欲望很强。'},
+        {'title': '那些带娃时想放弃的瞬间', 'tags': ['宝妈心态', '正能量'],
+         'desc': '带娃疲惫想放弃时，是什么让我坚持。关联：努力活着的正能量。'},
+        {'title': '孩子你慢点长大，妈妈还在努力', 'tags': ['亲子', '成长'],
+         'desc': '写给孩子的信，妈妈在努力成为更好的人。关联：娃是前进的动力。'},
+        {'title': '全职妈妈的一天，比上班还累', 'tags': ['宝妈日常', '共鸣'],
+         'desc': '从早到晚的真实记录，引发宝妈群体共鸣。关联：柴米油盐里的坚强。'},
+        {'title': '我为什么开始做自媒体', 'tags': ['宝妈创业', '初心'],
+         'desc': '回顾做自媒体的初心，赚钱+成长+给孩子更好的生活。关联：真实不装。'},
+        {'title': '当了妈才知道的10件事', 'tags': ['宝妈感悟', '通透'],
+         'desc': '当妈后的感悟金句，每句都戳心。关联：用通透的视角看宝妈生活。'},
+    ]
+
+    # 尝试用热榜关键词替换部分选题
+    if hot_items:
+        # 取前5个热榜，融入选题
+        for i, hot in enumerate(hot_items[:5]):
+            if i < len(base_topics):
+                # 在标题中加入热榜关键词
+                kw = hot['title'][:8]
+                base_topics[i]['title'] = f'{kw}火了，宝妈怎么看？'
+                base_topics[i]['tags'].append('热点')
+                base_topics[i]['desc'] = f'热点：{hot["title"]}。关联宝妈视角：站在25-40岁宝妈角度解读，关联搞钱和女性成长。'
+
+    # 尝试AI改写
+    for i, t in enumerate(base_topics[:3]):
+        prompt = f"为以下选题写一个更吸引25-40岁宝妈的标题和说明（要通透、有钩子）：\n原标题：{t['title']}\n原说明：{t['desc']}"
+        ai_result = ai_rewrite(prompt)
+        if ai_result and len(ai_result) < 200:
+            # 简单解析AI结果
+            lines = ai_result.split('\n')
+            if lines:
+                t['title'] = lines[0].replace('标题：', '').strip()[:30]
+                if len(lines) > 1:
+                    t['desc'] = lines[1].replace('说明：', '').strip()
+
+    topics = base_topics[:10]
+    return topics
+
+def generate_hot_items(hot_items):
+    """生成10条热点二创内容"""
+    items = []
+
+    # 模板：明星发言/歌曲/新闻/通透金句 的二创文案
+    templates = [
+        {
+            'source': 'star', 'sourceLabel': '明星发言',
+            'title': '某明星谈育儿：当妈妈比当明星难',
+            'angle': '关联宝妈日常：把明星的话翻译成宝妈视角，"当妈这件事，没有彩排，每天都是现场直播。"',
+            'copyTitle': '当妈后我懂了',
+            'copyOriginal': '当妈妈比当明星难——某明星',
+            'copyText': '当妈妈比当明星难\n这话我信了\n因为当明星有剧本\n当妈 全是现场直播\n\n没有NG的机会\n孩子哭了你得接着\n累了不能替班\n委屈了没人看见\n\n但你看 我还在努力\n不是因为不累\n是因为怀里这个小人儿\n值得我拼尽全力'
+        },
+        {
+            'source': 'song', 'sourceLabel': '热门歌曲',
+            'title': '《孤勇者》——谁说站在光里的才算英雄',
+            'angle': '关联宝妈搞钱：宝妈就是生活里的孤勇者，不在光里但也在战斗。关联柴米油盐和自媒体。',
+            'copyTitle': '谁说带娃的妈不算英雄',
+            'copyOriginal': '谁说站在光里的才算英雄——《孤勇者》',
+            'copyText': '谁说站在光里的才算英雄\n我每天在厨房在客厅在卧室\n战斗\n\n围裙是我的披风\n奶瓶是我的武器\n孩子的笑脸是我的勋章\n\n你问我累吗\n累 但你看\n我在为自己而战\n为这个家而战\n\n赚钱的欲望推着我往前走\n不是贪心\n是想给孩子更好的生活'
+        },
+        {
+            'source': 'news', 'sourceLabel': '新闻热点',
+            'title': '某地宝妈兼职月入过万引热议',
+            'angle': '不吹嘘收入，谈真实感受。关联点：我也想做但还没赚到钱，赚钱欲望强烈，记录真实过程。',
+            'copyTitle': '月入过万？我先说真话',
+            'copyOriginal': '宝妈兼职月入过万——新闻',
+            'copyText': '又看到月入过万的新闻了\n我当妈到现在\n自媒体还没赚到一分钱\n\n但我不想说假话\n不想编造不存在的收入\n我赚钱的欲望很强烈\n强烈到每天孩子睡了\n我还坐在手机前\n\n也许明天就赚到第一块钱了\n也许还要很久\n但你看 妈妈在努力\n这件事\n本身就很了不起'
+        },
+        {
+            'source': 'dy', 'sourceLabel': '抖音热榜',
+            'title': '#当妈后的变化# 上热搜',
+            'angle': '关联宝妈日常变化，从外貌到心态。用通透金句串联，结尾落到搞钱和成长。',
+            'copyTitle': '当妈后 我变了',
+            'copyOriginal': '#当妈后的变化# 抖音热搜',
+            'copyText': '当妈后\n我学会了边吃饭边抱娃\n学会了睁眼就干活\n学会了把哭咽回去\n\n但我也学会了\n在缝隙里给自己找光\n在疲惫里给自己找希望\n在柴米油盐里\n给自己留一个赚钱的梦\n\n当妈 不是终点\n是另一个起点\n我是妈妈\n也是正在生长的我'
+        },
+        {
+            'source': 'star', 'sourceLabel': '明星发言',
+            'title': '某女演员：当了妈才知道什么是真正的坚强',
+            'angle': '把明星金句和宝妈日常关联，用孩子照片配通透文案，调整说话人称避免违和。',
+            'copyTitle': '真正的坚强',
+            'copyOriginal': '当了妈才知道什么是真正的坚强——某女演员',
+            'copyText': '她说当了妈才知道坚强\n我当了妈才知道\n坚强是 哭着也要把奶温好\n坚强是 累瘫了也要检查作业\n坚强是 想放弃时看一眼娃\n又咬牙撑过去了\n\n你看 当妈这件事\n让我们都变成了\n自己以前最佩服的那种人'
+        },
+        {
+            'source': 'song', 'sourceLabel': '热门歌曲',
+            'title': '《如愿》——你心我生长的方向',
+            'angle': '关联亲子成长，妈妈努力的方向就是孩子的未来。关联宝妈成长和搞钱动力。',
+            'copyTitle': '我心生长的方向',
+            'copyOriginal': '你心我生长的方向——《如愿》',
+            'copyText': '你是我心生长的方向\n也是我拼命的理由\n\n我想给你更好的生活\n不是溺爱\n是让你有底气去闯\n\n所以我在努力 在赚钱\n在自媒体这条路上\n跌跌撞撞\n\n也许慢了点\n但方向 从来没错'
+        },
+        {
+            'source': 'news', 'sourceLabel': '通透句库',
+            'title': '人民日报金句：所有的努力都不会被辜负',
+            'angle': '关联宝妈搞钱路，还没有赚到钱但相信努力。用孩子照片配金句，调整人称。',
+            'copyTitle': '努力不会被辜负',
+            'copyOriginal': '所有的努力都不会被辜负——人民日报',
+            'copyText': '所有的努力都不会被辜负\n这句话我贴在手机壁纸上\n\n当妈后 我做了很多\n没人看见的事\n但我自己知道\n每一个深夜的坚持\n每一次想哭又忍住\n\n还没赚到钱 但我相信\n走过的路 都算数'
+        },
+        {
+            'source': 'bili', 'sourceLabel': 'B站热门',
+            'title': '全职妈妈的100种可能',
+            'angle': '关联宝妈搞钱和自媒体，展示全职妈妈也可以有副业。用通透文案串联。',
+            'copyTitle': '全职妈妈的一百种可能',
+            'copyOriginal': '全职妈妈的100种可能 B站热门',
+            'copyText': '全职妈妈\n不只有一种活法\n\n我见过带娃做自媒体的\n我见过孩子睡了写文案的\n我见过一手奶瓶一手手机的\n\n我不是例外\n我是其中之一\n在柴米油盐里\n在喂奶换尿布间\n我在给自己 拼一个可能'
+        },
+        {
+            'source': 'song', 'sourceLabel': '热门歌曲',
+            'title': '《起风了》——逆着风行走',
+            'angle': '关联宝妈逆风前行的状态，搞钱路上不顺利但依然坚持。文案通透有力量。',
+            'copyTitle': '逆着风 走',
+            'copyOriginal': '逆着风行走——《起风了》',
+            'copyText': '逆着风 走\n当妈后我常这样\n\n收入不稳 孩子要带\n家里事多 外面要拼\n每一步都是逆风\n\n但你看\n逆风走的妈妈\n走得慢 但走得稳\n走得累 但走得真\n\n总有一天 风会转向\n那时 我已经走了很远'
+        },
+        {
+            'source': 'star', 'sourceLabel': '明星发言',
+            'title': '某明星：女性的力量被低估了',
+            'angle': '关联宝妈搞钱和女性成长，用孩子照片配通透文案，突出宝妈的坚韧和搞钱决心。',
+            'copyTitle': '被低估的力量',
+            'copyOriginal': '女性的力量被低估了——某明星',
+            'copyText': '女性的力量被低估了\n我信\n\n因为当妈后我发现\n我能一边抱娃一边回消息\n我能一边做饭一边想选题\n我能在崩溃后第二天\n笑着继续\n\n这力量 没人标价\n但我知道 它很值钱\n所以我拿它去拼\n去搞钱 去生长\n去成为 自己佩服的人'
+        }
+    ]
+
+    # 融入热榜内容
+    if hot_items:
+        for i, hot in enumerate(hot_items[:3]):
+            if i < len(templates):
+                templates[i]['title'] = hot['title'][:30]
+                templates[i]['source'] = hot['source']
+                templates[i]['sourceLabel'] = hot['sourceLabel']
+
+    # 尝试AI改写前2条
+    for i in range(min(2, len(templates))):
+        t = templates[i]
+        prompt = f"""为以下二创文案写一个新版本，要求：
+1. 关联宝妈搞钱、女性成长、柴米油盐和自媒体
+2. 还没赚到钱但赚钱欲望强烈
+3. 每句12-16字，读着有连贯性
+4. 标题要有钩子
+
+原句：{t.get('copyOriginal','')}
+原标题：{t['title']}
+角度：{t.get('angle','')}"""
+        ai_result = ai_rewrite(prompt)
+        if ai_result:
+            t['copyText'] = ai_result
+
+    items = templates[:10]
+    return items
+
+# ============================================================
+# 主函数
+# ============================================================
+def main():
+    print(f"=== 宝妈创作工作台 自动更新 {NOW} ===\n")
+
+    # 1. 抓取热榜
+    hot_items = fetch_all_hot()
+
+    # 2. 生成选题灵感
+    print("\n生成选题灵感...")
+    topics = generate_topics(hot_items)
+    print(f"  生成 {len(topics)} 条选题")
+
+    # 3. 生成热点二创
+    print("\n生成热点二创...")
+    hot_data = generate_hot_items(hot_items)
+    print(f"  生成 {len(hot_data)} 条二创内容")
+
+    # 4. 组装数据
+    result = {
+        'date': TODAY,
+        'updateTime': NOW,
+        'topics': {
+            'date': TODAY,
+            'updateTime': NOW,
+            'topics': topics
+        },
+        'hot': {
+            'date': TODAY,
+            'updateTime': NOW,
+            'items': hot_data
+        }
+    }
+
+    # 5. 写入文件
+    os.makedirs('data', exist_ok=True)
+    with open('data/creator-data.json', 'w', encoding='utf-8') as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+
+    print(f"\n=== 更新完成 ===")
+    print(f"数据已写入 data/creator-data.json")
+    print(f"  选题: {len(topics)} 条")
+    print(f"  二创: {len(hot_data)} 条")
+    print(f"  更新时间: {NOW}")
+
+if __name__ == '__main__':
+    main()

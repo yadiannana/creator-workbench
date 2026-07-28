@@ -1,0 +1,56 @@
+name: 每日自动更新创作内容
+
+on:
+  schedule:
+    # 早8点、下午2点、晚8点（北京时间 UTC+8，对应UTC 0:00, 6:00, 12:00）
+    - cron: '0 0 * * *'
+    - cron: '0 6 * * *'
+    - cron: '0 12 * * *'
+  workflow_dispatch:  # 支持手动触发
+
+permissions:
+  contents: write
+  gist: write
+
+jobs:
+  update-content:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: |
+          pip install requests beautifulsoup4
+
+      - name: 抓取并改写内容
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIST_ID: ${{ secrets.GIST_ID }}
+          # AI改写用（可选，用免费API或本地模板）
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_API_URL: ${{ secrets.AI_API_URL }}
+        run: python3 scripts/update_content.py
+
+      - name: 推送到 Gist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIST_ID: ${{ secrets.GIST_ID }}
+        run: |
+          # 读取生成的数据
+          CONTENT=$(cat data/creator-data.json)
+          # 用 gh CLI 更新 Gist
+          gh gist edit "$GIST_ID" --filename creator-data.json --content "$CONTENT" 2>&1 || \
+          echo "Gist更新失败，可能是GIST_ID未配置"
+
+      - name: 检查结果
+        run: |
+          echo "=== 更新完成 ==="
+          cat data/creator-data.json | head -50
+          echo ""
+          echo "更新时间: $(date)"
