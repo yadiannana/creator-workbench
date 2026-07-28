@@ -9,8 +9,7 @@ on:
   workflow_dispatch:  # 支持手动触发
 
 permissions:
-  contents: write
-  gist: write
+  contents: read
 
 jobs:
   update-content:
@@ -28,29 +27,18 @@ jobs:
         run: |
           pip install requests beautifulsoup4
 
-      - name: 抓取并改写内容
+      - name: 抓取并AI改写内容
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GIST_ID: ${{ secrets.GIST_ID }}
-          # AI改写用（可选，用免费API或本地模板）
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           AI_API_URL: ${{ secrets.AI_API_URL }}
-        run: python3 scripts/update_content.py
-
-      - name: 推送到 Gist
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GIST_ID: ${{ secrets.GIST_ID }}
-        run: |
-          # 读取生成的数据
-          CONTENT=$(cat data/creator-data.json)
-          # 用 gh CLI 更新 Gist
-          gh gist edit "$GIST_ID" --filename creator-data.json --content "$CONTENT" 2>&1 || \
-          echo "Gist更新失败，可能是GIST_ID未配置"
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: python3 scripts/update_content.py
 
       - name: 检查结果
         run: |
           echo "=== 更新完成 ==="
-          cat data/creator-data.json | head -50
-          echo ""
+          echo "文件大小: $(wc -c < data/creator-data.json) 字节"
+          echo "选题数量: $(python3 -c 'import json;d=json.load(open("data/creator-data.json"));print(len(d["topics"]["topics"]))')"
+          echo "二创数量: $(python3 -c 'import json;d=json.load(open("data/creator-data.json"));print(len(d["hot"]["items"]))')"
           echo "更新时间: $(date)"

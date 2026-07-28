@@ -477,12 +477,12 @@ a{color:inherit;text-decoration:none;}
 
 // ===== 配置 =====
 const CONFIG = {
-  // Gist ID（部署后配置）
-  GIST_ID: '',  // ← 这里填你的公开Gist ID
+  // Gist ID（已自动配置）
+  GIST_ID: 'df64d861823b5672bb5b248052bfc195',
   GIST_FILENAME: 'creator-data.json',
-  // Gist Raw URL（自动拼接，也可手动覆盖）
+  // Gist Raw URL（自动拼接）
   get GIST_URL() {
-    if (this.GIST_ID) return `https://gist.githubusercontent.com/${this.GIST_ID}/raw/${this.GIST_FILENAME}`;
+    if (this.GIST_ID) return `https://gist.githubusercontent.com/yadiannana/${this.GIST_ID}/raw/${this.GIST_FILENAME}`;
     return '';
   }
 };
