@@ -298,10 +298,26 @@ def parse_ai_json(text):
     text = re.sub(r'^```json\s*', '', text)
     text = re.sub(r'^```\s*', '', text)
     text = text.strip().rstrip('`')
+    # 直接解析
     try:
         return json.loads(text)
     except:
-        return None
+        pass
+    # 尝试提取JSON数组
+    arr_match = re.search(r'\[[\s\S]*\]', text)
+    if arr_match:
+        try:
+            return json.loads(arr_match.group())
+        except:
+            pass
+    # 尝试提取JSON对象
+    obj_match = re.search(r'\{[\s\S]*\}', text)
+    if obj_match:
+        try:
+            return json.loads(obj_match.group())
+        except:
+            pass
+    return None
 
 # ============================================================
 # 生成选题灵感（AI改写）
@@ -481,6 +497,9 @@ def generate_hot_items_ai(hot_items):
                         })
                 print(f"  第{batch+1}批AI生成 {len(parsed)} 条")
                 continue
+            else:
+                print(f"  第{batch+1}批JSON解析失败，使用模板")
+                print(f"  AI返回前100字: {result[:100]}")
 
         # AI失败，用模板补充
         for i, src in enumerate(batch_sources):
