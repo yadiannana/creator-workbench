@@ -317,15 +317,9 @@ def parse_ai_json(text):
         # 尝试修复常见的JSON问题：换行符在字符串值里未转义
         # 逐个解析每个对象
         try:
-            # 用正则提取每个JSON对象
-            objects = re.findall(r'\{[^{}]+\}', json_str)
-            if objects:
-                result = []
-                for obj_str in objects:
-                    try:
-                        # 修复未转义的换行符
-                    except:
-                        pass
+            # 用正则提取每个JSON对象（这段保留但不使用，作为备选）
+            # objects = re.findall(r'\{[^{}]+\}', json_str)
+            pass
         except:
             pass
 
