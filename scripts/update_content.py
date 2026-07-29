@@ -504,10 +504,10 @@ def generate_hot_items_ai(hot_items):
     # 构建热度摘要给AI
     hot_summary = "\n".join([f"{i+1}. [{s['sourceLabel']}] {s['title']}" for i, s in enumerate(all_sources[:10])])
 
-    # 逐条生成（更稳定，每条JSON小不容易出错）
+    # AI生成8条，最后2条留给用户收集的文案
     items = []
 
-    for i, src in enumerate(all_sources[:10]):
+    for i, src in enumerate(all_sources[:8]):
         print(f"  生成第{i+1}条二创...")
         prompt = f"""{PERSONA}
 
@@ -568,6 +568,27 @@ def generate_hot_items_ai(hot_items):
             item['hook'] = generate_hook_fallback(src.get('title', ''))
         items.append(item)
 
+    # 第9-10条：留给用户收集的同类型博主火文案
+    # 从已有Gist数据中读取用户收集的文案（如果之前有保存的话）
+    user_collected = load_user_collected_copy()
+    for j in range(2):
+        if j < len(user_collected):
+            items.append(user_collected[j])
+            print(f"  第{j+9}条: 用户收集文案")
+        else:
+            # 占位，等用户填入
+            items.append({
+                'source': 'user',
+                'sourceLabel': '📝 我收集的文案',
+                'title': f'同类型博主火文案 #{j+1}（待填入）',
+                'hook': '',
+                'angle': '这是我收集的同类型博主火文案，可以直接用或参考改编',
+                'copyTitle': '',
+                'copyOriginal': '',
+                'copyText': '（这里放你收集的博主火文案）\n\n把你在表格里收集的文案发给我，我会填到这里，\n每天自动和AI生成的内容一起展示。'
+            })
+            print(f"  第{j+9}条: 占位（等用户填入收集文案）")
+
     return items
 
 def generate_hook_fallback(title):
@@ -585,6 +606,51 @@ def generate_hook_fallback(title):
         '带娃最累的那天，我想通了这件事',
     ]
     return hooks[hash(title) % len(hooks)]
+
+def load_user_collected_copy():
+    """从Gist读取用户收集的同类型博主火文案（第9-10条用）"""
+    if not GIST_ID or not GH_TOKEN:
+        return []
+    try:
+        url = f'https://api.github.com/gists/{GIST_ID}'
+        headers = {'Authorization': f'token {GH_TOKEN}', 'Accept': 'application/vnd.github.v3+json'}
+        resp = requests.get(url, headers=headers, timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            # 尝试读取 user-collected.json 文件
+            files = data.get('files', {})
+            if 'user-collected.json' in files:
+                content = files['user-collected.json'].get('content', '[]')
+                collected = json.loads(content)
+                if isinstance(collected, list):
+                    return collected[:2]
+        return []
+    except Exception as e:
+        print(f"  读取用户收集文案: {e}")
+        return []
+
+def save_user_collected_copy(items):
+    """保存用户收集的文案到Gist（第9-10条）"""
+    if not GIST_ID or not GH_TOKEN:
+        return
+    try:
+        url = f'https://api.github.com/gists/{GIST_ID}'
+        headers = {'Authorization': f'token {GH_TOKEN}', 'Accept': 'application/vnd.github.v3+json'}
+        # 只保存source=user的条目
+        user_items = [item for item in items if item.get('source') == 'user' and item.get('copyText', '').startswith('（这里') == False]
+        if not user_items:
+            return
+        payload = {
+            'files': {
+                'user-collected.json': {
+                    'content': json.dumps(user_items, ensure_ascii=False, indent=2)
+                }
+            }
+        }
+        requests.patch(url, json=payload, headers=headers, timeout=15)
+        print(f"  保存用户收集文案 {len(user_items)} 条")
+    except Exception as e:
+        print(f"  保存用户收集文案失败: {e}")
 
 def get_fallback_hot_item(i, src):
     """模板二创（AI失败时用）"""

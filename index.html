@@ -110,7 +110,8 @@ a{color:inherit;text-decoration:none;}
 .hot-card .hot-source.baidu{background:#2932E1;color:#fff;}
 .hot-card .hot-source.news{background:#FF6B6B;color:#fff;}
 .hot-card .hot-source.song{background:#FF7A45;color:#fff;}
-.hot-card .hot-source.star{background:#9C27B0;color:#fff;}
+.hot-card .hot-source.user{background:#FF9800;color:#fff;}
+.hot-card.user-card{border-left:3px solid #FF9800;background:#FFFBF0;}
 .hot-card .hot-title{font-size:14px;font-weight:600;margin-bottom:6px;line-height:1.4;}
 .hot-card .hot-hook{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px 10px;background:linear-gradient(90deg,#FFE4EC,#FFF5F8);border-radius:8px;border-left:3px solid var(--pink);}
 .hot-card .hook-label{font-size:11px;font-weight:600;color:var(--pink);flex-shrink:0;}
@@ -772,10 +773,12 @@ function renderHot(data) {
   list.innerHTML = '';
   data.items.forEach((h, i) => {
     const card = document.createElement('div');
-    card.className = 'hot-card';
+    const isUserCollected = h.source === 'user';
+    card.className = 'hot-card' + (isUserCollected ? ' user-card' : '');
     const keyword = encodeURIComponent(h.title);
     const copyTextSafe = escapeHtml(h.copyText||'').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/\n/g,'\\n');
     const hookSafe = escapeHtml(h.hook||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    const isPlaceholder = h.copyText && h.copyText.includes('这里放你收集的博主火文案');
     card.innerHTML = `
       <span class="hot-source ${h.source}">${escapeHtml(h.sourceLabel)}</span>
       <div class="hot-title">${i+1}. ${escapeHtml(h.title)}</div>
@@ -783,14 +786,38 @@ function renderHot(data) {
       <div class="hot-angle">${escapeHtml(h.angle)}</div>
       ${h.copyOriginal ? `<div class="hot-copy-original">原句：${escapeHtml(h.copyOriginal)}</div>` : ''}
       ${h.copyText ? `<div class="hot-copy-label">📝 二创文案（可直接用）</div><div class="hot-copy">${escapeHtml(h.copyText)}</div>` : ''}
+      ${isUserCollected ? `<button class="hot-btn" style="width:100%;margin-bottom:8px;border-style:dashed;" onclick="editUserCopy(${i})">${isPlaceholder ? '✏️ 点这里填入你收集的文案' : '✏️ 编辑这条文案'}</button>` : ''}
       <div class="hot-actions">
         <button class="hot-btn" onclick="copyText('${copyTextSafe}')">复制文案</button>
-        <button class="hot-btn" onclick="jumpTo('dy','${keyword}')">看抖音</button>
-        <button class="hot-btn filled" onclick="jumpTo('xhs','${keyword}')">看小红书</button>
+        ${isPlaceholder ? '' : `<button class="hot-btn" onclick="jumpTo('dy','${keyword}')">看抖音</button><button class="hot-btn filled" onclick="jumpTo('xhs','${keyword}')">看小红书</button>`}
       </div>
     `;
     list.appendChild(card);
   });
+}
+
+function editUserCopy(index) {
+  const cached = Store.get('hot', null);
+  if (!cached || !cached.items) return;
+  const item = cached.items[index];
+  const text = prompt('填入你收集的同类型博主火文案：\n（可以直接粘贴博主原文，AI会帮你改写）', item.copyText || '');
+  if (text === null) return;
+  // 保存到本地
+  item.copyText = text;
+  item.title = item.title.replace('（待填入）', '').trim() || '同类型博主火文案';
+  cached.items[index] = item;
+  Store.set('hot', cached);
+  // 保存到Gist（user-collected.json）
+  saveUserCollectedToGist(cached.items);
+  renderHot(cached);
+  toast('文案已保存！下次自动更新会保留');
+}
+
+function saveUserCollectedToGist(allItems) {
+  // 只保存source=user的条目
+  const userItems = allItems.filter(i => i.source === 'user');
+  // 存到localStorage（Gist写入需要token，网页端做不到，先存本地）
+  Store.set('userCollected', userItems);
 }
 
 function copyText(text) {
