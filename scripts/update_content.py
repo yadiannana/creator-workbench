@@ -297,26 +297,90 @@ def parse_ai_json(text):
     # 去掉markdown代码块
     text = re.sub(r'^```json\s*', '', text)
     text = re.sub(r'^```\s*', '', text)
-    text = text.strip().rstrip('`')
+    text = text.strip().rstrip('`').strip()
+
     # 直接解析
     try:
         return json.loads(text)
     except:
         pass
-    # 尝试提取JSON数组
-    arr_match = re.search(r'\[[\s\S]*\]', text)
-    if arr_match:
+
+    # 尝试提取JSON数组（从第一个[到最后一个]）
+    arr_start = text.find('[')
+    arr_end = text.rfind(']')
+    if arr_start != -1 and arr_end != -1 and arr_end > arr_start:
+        json_str = text[arr_start:arr_end+1]
         try:
-            return json.loads(arr_match.group())
+            return json.loads(json_str)
         except:
             pass
+        # 尝试修复常见的JSON问题：换行符在字符串值里未转义
+        # 逐个解析每个对象
+        try:
+            # 用正则提取每个JSON对象
+            objects = re.findall(r'\{[^{}]+\}', json_str)
+            if objects:
+                result = []
+                for obj_str in objects:
+                    try:
+                        # 修复未转义的换行符
+                    except:
+                        pass
+        except:
+            pass
+
     # 尝试提取JSON对象
-    obj_match = re.search(r'\{[\s\S]*\}', text)
-    if obj_match:
+    obj_start = text.find('{')
+    obj_end = text.rfind('}')
+    if obj_start != -1 and obj_end != -1 and obj_end > obj_start:
+        json_str = text[obj_start:obj_end+1]
         try:
-            return json.loads(obj_match.group())
+            return json.loads(json_str)
         except:
             pass
+
+    # 最后尝试：逐行清洗，把字符串值内的裸换行替换为\n
+    try:
+        cleaned = text
+        # 在双引号内的换行替换为\n
+        def escape_newlines_in_strings(s):
+            result = []
+            in_string = False
+            escaped = False
+            for char in s:
+                if escaped:
+                    result.append(char)
+                    escaped = False
+                    continue
+                if char == '\\':
+                    result.append(char)
+                    escaped = True
+                    continue
+                if char == '"':
+                    in_string = not in_string
+                    result.append(char)
+                    continue
+                if char == '\n' and in_string:
+                    result.append('\\n')
+                    continue
+                if char == '\r' and in_string:
+                    continue
+                result.append(char)
+            return ''.join(result)
+
+        cleaned = escape_newlines_in_strings(text)
+        # 再尝试解析
+        arr_start = cleaned.find('[')
+        arr_end = cleaned.rfind(']')
+        if arr_start != -1 and arr_end != -1:
+            return json.loads(cleaned[arr_start:arr_end+1])
+        obj_start = cleaned.find('{')
+        obj_end = cleaned.rfind('}')
+        if obj_start != -1 and obj_end != -1:
+            return json.loads(cleaned[obj_start:obj_end+1])
+    except:
+        pass
+
     return None
 
 # ============================================================
@@ -480,6 +544,11 @@ def generate_hot_items_ai(hot_items):
 
         result = call_deepseek(prompt)
         if result:
+            # 保存AI原始返回用于调试
+            os.makedirs('data', exist_ok=True)
+            with open(f'data/ai_raw_batch{batch+1}.txt', 'w', encoding='utf-8') as f:
+                f.write(result)
+
             parsed = parse_ai_json(result)
             if parsed and isinstance(parsed, list):
                 for i, p in enumerate(parsed):
@@ -499,7 +568,13 @@ def generate_hot_items_ai(hot_items):
                 continue
             else:
                 print(f"  第{batch+1}批JSON解析失败，使用模板")
-                print(f"  AI返回前100字: {result[:100]}")
+                print(f"  AI返回前200字: {repr(result[:200])}")
+                # 尝试找到失败原因
+                try:
+                    json.loads(result.strip().rstrip('`'))
+                except json.JSONDecodeError as e:
+                    print(f"  JSON错误: {e}")
+                    print(f"  错误位置附近: {repr(result[max(0,e.pos-30):e.pos+30])}")
 
         # AI失败，用模板补充
         for i, src in enumerate(batch_sources):
