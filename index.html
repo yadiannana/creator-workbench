@@ -112,6 +112,10 @@ a{color:inherit;text-decoration:none;}
 .hot-card .hot-source.song{background:#FF7A45;color:#fff;}
 .hot-card .hot-source.star{background:#9C27B0;color:#fff;}
 .hot-card .hot-title{font-size:14px;font-weight:600;margin-bottom:6px;line-height:1.4;}
+.hot-card .hot-hook{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px 10px;background:linear-gradient(90deg,#FFE4EC,#FFF5F8);border-radius:8px;border-left:3px solid var(--pink);}
+.hot-card .hook-label{font-size:11px;font-weight:600;color:var(--pink);flex-shrink:0;}
+.hot-card .hook-text{font-size:14px;font-weight:600;color:var(--text);flex:1;line-height:1.4;}
+.hot-card .hook-copy-btn{font-size:11px;color:var(--pink);border:1px solid var(--pink);border-radius:4px;padding:2px 8px;background:#fff;cursor:pointer;flex-shrink:0;}
 .hot-card .hot-angle{font-size:13px;color:var(--text);line-height:1.6;background:var(--bg);padding:10px;border-radius:8px;margin-bottom:8px;}
 .hot-card .hot-angle::before{content:'改编角度：';font-weight:600;color:var(--pink);}
 .hot-card .hot-copy{font-size:13px;color:#333;line-height:1.6;background:#FFF9F0;border-left:3px solid #FFA500;padding:10px;border-radius:0 8px 8px 0;margin-bottom:8px;white-space:pre-wrap;}
@@ -770,14 +774,17 @@ function renderHot(data) {
     const card = document.createElement('div');
     card.className = 'hot-card';
     const keyword = encodeURIComponent(h.title);
+    const copyTextSafe = escapeHtml(h.copyText||'').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/\n/g,'\\n');
+    const hookSafe = escapeHtml(h.hook||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
     card.innerHTML = `
       <span class="hot-source ${h.source}">${escapeHtml(h.sourceLabel)}</span>
       <div class="hot-title">${i+1}. ${escapeHtml(h.title)}</div>
+      ${h.hook ? `<div class="hot-hook"><span class="hook-label">🎣 钩子</span><span class="hook-text">${escapeHtml(h.hook)}</span><button class="hook-copy-btn" onclick="copyText('${hookSafe}')">复制</button></div>` : ''}
       <div class="hot-angle">${escapeHtml(h.angle)}</div>
       ${h.copyOriginal ? `<div class="hot-copy-original">原句：${escapeHtml(h.copyOriginal)}</div>` : ''}
       ${h.copyText ? `<div class="hot-copy-label">📝 二创文案（可直接用）</div><div class="hot-copy">${escapeHtml(h.copyText)}</div>` : ''}
       <div class="hot-actions">
-        <button class="hot-btn" onclick="copyText('${escapeHtml(h.copyText||'').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/\n/g,'\\n')}')">复制文案</button>
+        <button class="hot-btn" onclick="copyText('${copyTextSafe}')">复制文案</button>
         <button class="hot-btn" onclick="jumpTo('dy','${keyword}')">看抖音</button>
         <button class="hot-btn filled" onclick="jumpTo('xhs','${keyword}')">看小红书</button>
       </div>

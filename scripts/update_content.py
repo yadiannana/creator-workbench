@@ -152,16 +152,93 @@ def fetch_zhihu_hot():
         print(f"  知乎热榜: {e}")
         return []
 
+def fetch_weibo_star_topics():
+    """抓取微博明星话题/娱乐热搜（女性关注度高）"""
+    try:
+        url = 'https://weibo.com/ajax/side/hotSearch'
+        resp = requests.get(url, headers=HEADERS, timeout=10)
+        data = resp.json()
+        items = []
+        # 娱乐/明星分类
+        for item in data.get('data', {}).get('realtime', [])[:30]:
+            category = item.get('category', '')
+            label = item.get('label_name', '')
+            note = item.get('note', '')
+            # 筛选明星/娱乐相关
+            if any(kw in note for kw in ['明星','演员','歌手','获奖','感言','说','回应',
+                    '杨紫','张凌赫','孟子义','周星驰','徐良','赵露思','虞书欣',
+                    '演唱会','舞台','伴舞','歌词','新歌','专辑','明星发言']):
+                items.append({
+                    'title': note,
+                    'source': 'star',
+                    'sourceLabel': '明星动态',
+                })
+        return items[:10]
+    except Exception as e:
+        print(f"  微博明星: {e}")
+        return []
+
+def fetch_netease_hot_songs():
+    """抓取网易云音乐热歌榜（热门歌曲/伴舞相关）"""
+    try:
+        url = 'https://music.163.com/api/playlist/detail?id=3778678'  # 云音乐热歌榜
+        resp = requests.get(url, headers={
+            'User-Agent': HEADERS['User-Agent'],
+            'Referer': 'https://music.163.com'
+        }, timeout=10)
+        data = resp.json()
+        items = []
+        tracks = data.get('result', {}).get('tracks', [])[:10]
+        for track in tracks:
+            name = track.get('name', '')
+            artist = track.get('artists', [{}])[0].get('name', '')
+            items.append({
+                'title': f'《{name}》-{artist}',
+                'source': 'song',
+                'sourceLabel': '热门歌曲',
+            })
+        return items
+    except Exception as e:
+        print(f"  网易云热歌: {e}")
+        return []
+
+def fetch_bili_hot_topics():
+    """抓取B站热门视频（娱乐/明星/舞蹈类）"""
+    try:
+        url = 'https://api.bilibili.com/x/web-interface/popular?ps=10&pn=1'
+        resp = requests.get(url, headers=HEADERS, timeout=10)
+        data = resp.json()
+        items = []
+        for item in data.get('data', {}).get('list', [])[:10]:
+            title = item.get('title', '').replace('<em class="keyword">','').replace('</em>','')
+            tname = item.get('tname', '')
+            # 筛选女性关注的内容：明星/舞蹈/音乐/生活
+            if tname in ('明星','舞蹈','音乐','生活','美妆','日常') or \
+               any(kw in title for kw in ['明星','舞台','伴舞','歌曲','歌词','感言',
+                   '杨紫','张凌赫','孟子义','周星驰','徐良','说','金句','通透']):
+                items.append({
+                    'title': title,
+                    'source': 'bili',
+                    'sourceLabel': 'B站热门',
+                })
+        return items
+    except Exception as e:
+        print(f"  B站热门视频: {e}")
+        return []
+
 def fetch_all_hot():
-    """抓取所有热榜"""
+    """抓取所有热榜+明星动态+热门歌曲"""
     all_hot = []
-    print("开始抓取热榜...")
+    print("开始抓取热度内容...")
     sources = [
         ('抖音', fetch_douyin_hot),
-        ('微博', fetch_weibo_hot),
-        ('B站', fetch_bili_hot),
+        ('微博热搜', fetch_weibo_hot),
+        ('微博明星', fetch_weibo_star_topics),
+        ('B站热门', fetch_bili_hot),
+        ('B站视频', fetch_bili_hot_topics),
         ('百度', fetch_baidu_hot),
         ('知乎', fetch_zhihu_hot),
+        ('网易云热歌', fetch_netease_hot_songs),
     ]
     for name, func in sources:
         try:
@@ -286,82 +363,158 @@ def get_fallback_topics():
     ]
 
 # ============================================================
-# 生成热点二创（AI改写）
+# 钩子知识库（对标抖音/小红书宝妈赛道）
+# ============================================================
+HOOK_TEMPLATES = """宝妈赛道7种爆款钩子模板（10-15字一句话）：
+1. 痛点暴击式："带娃带到崩溃的妈妈，听这段话"
+2. 反常识颠覆式："越省钱反而越穷的真相，太现实"
+3. 提问共鸣式："你有没有一瞬间，突然觉得特别累？"
+4. 对比反差式："以前我讨好所有人，现在只讨好自己"
+5. 警告提醒式："别再乱发朋友圈了，真的很掉价"
+6. 故事开头式："昨天一条私信，看完特别心疼"
+7. 圈层召唤式："想赚钱的宝妈，一定要看完这段"
+
+万能钩子公式：
+- 同样是宝妈，为什么她XX你却XX
+- 带娃XX天我才明白，XX才是真相
+- 如果你也是XX的妈妈，请听完
+- 月薪X千的宝妈，千万别做这X件事
+- 我花X年才懂的道理，今天告诉你
+
+钩子要求：
+- 10-15字一句话
+- 第一秒点名"宝妈/妈妈/带娃"精准锚定人群
+- 必须有强情绪词：崩溃、心酸、熬、想哭、后悔、惊醒
+- 配图+钩子咬合：孩子背影照配反差钩子效果最好"""
+
+# ============================================================
+# 生成热点二创（AI改写，含钩子）
 # ============================================================
 def generate_hot_items_ai(hot_items):
-    """用AI生成10条热点二创内容"""
-    # 选10个不同的来源类型
-    hot_for_rewrite = hot_items[:5] if hot_items else []
+    """用AI生成10条热点二创内容，每条含钩子"""
 
-    # 补充明星发言/歌曲/通透句库类型
+    # 按类型分组热度内容，确保来源多样化
+    # 3条热搜 + 3条明星动态 + 2条歌曲 + 2条通透金句
+    hot_sources = [h for h in hot_items if h['source'] in ('dy','weibo','baidu','zhihu')][:3]
+    star_sources = [h for h in hot_items if h['sourceLabel'] in ('明星动态','明星发言')][:3]
+    song_sources = [h for h in hot_items if h['sourceLabel'] in ('热门歌曲',)][:2]
+
+    # 补充固定类型模板
     type_templates = [
-        {'source':'star','sourceLabel':'明星发言','title':'某明星谈育儿感悟'},
-        {'source':'song','sourceLabel':'热门歌曲','title':'《孤勇者》歌词感悟'},
-        {'source':'news','sourceLabel':'通透句库','title':'人民日报金句：努力不会被辜负'},
-        {'source':'star','sourceLabel':'明星发言','title':'某女演员谈女性力量'},
-        {'source':'song','sourceLabel':'热门歌曲','title':'《如愿》歌词感悟'},
+        {'source':'star','sourceLabel':'明星发言','title':'杨紫获奖感言：感谢每一个没有放弃的自己'},
+        {'source':'star','sourceLabel':'明星发言','title':'张凌赫：努力的人终会被看见'},
+        {'source':'star','sourceLabel':'明星发言','title':'孟子义谈女性独立：不需要依附任何人'},
+        {'source':'star','sourceLabel':'明星发言','title':'周星驰：做人如果没有梦想，跟咸鱼有什么区别'},
+        {'source':'song','sourceLabel':'热门歌曲','title':'徐良歌曲伴舞火了，歌词戳中宝妈心事'},
+        {'source':'song','sourceLabel':'热门歌曲','title':'《如愿》——你心我生长的方向'},
+        {'source':'news','sourceLabel':'通透句库','title':'人民日报金句：所有的努力都不会被辜负'},
+        {'source':'news','sourceLabel':'通透句库','title':'通透句库：人生没有白走的路，每一步都算数'},
     ]
 
     all_sources = []
-    # 热榜实际内容
-    for h in hot_for_rewrite:
-        all_sources.append({
-            'source': h['source'],
-            'sourceLabel': h['sourceLabel'],
-            'title': h['title'][:30]
-        })
-    # 补充类型模板到10个
-    for t in type_templates:
-        if len(all_sources) < 10:
-            all_sources.append(t)
+    # 优先用实际抓取的内容
+    all_sources.extend(hot_sources)
+    all_sources.extend(star_sources)
+    all_sources.extend(song_sources)
 
-    # 确保10个
+    # 用模板补齐到10条
+    for t in type_templates:
+        if len(all_sources) >= 10:
+            break
+        all_sources.append(t)
+
     while len(all_sources) < 10:
         all_sources.append(type_templates[len(all_sources) % len(type_templates)])
 
+    # 构建热度摘要给AI
+    hot_summary = "\n".join([f"{i+1}. [{s['sourceLabel']}] {s['title']}" for i, s in enumerate(all_sources[:10])])
+
+    # 一次性让AI生成所有10条（分2批，每批5条，保证质量）
     items = []
-    for i, src in enumerate(all_sources[:10]):
-        print(f"  生成第{i+1}条二创...")
+
+    for batch in range(2):
+        batch_sources = all_sources[batch*5:(batch+1)*5]
+        batch_summary = "\n".join([f"{i+1}. [{s['sourceLabel']}] {s['title']}" for i, s in enumerate(batch_sources)])
+
+        print(f"  生成第{batch*5+1}-{batch*5+5}条二创...")
         prompt = f"""{PERSONA}
 
-为以下内容写一条二创文案：
+{HOOK_TEMPLATES}
 
-来源：{src['sourceLabel']}
-标题/原句：{src['title']}
+为以下5条热度内容分别写二创文案：
 
-要求：
-1. 改编角度：怎么关联到宝妈搞钱、女性成长、柴米油盐和自媒体（30-50字）
-2. 原句：保留来源的3-4句精华
-3. 二创文案：写一个完整的图文文案
-   - 标题要有钩子（通透、吸引25-40岁宝妈）
+{batch_summary}
+
+每条要求：
+1. hook: 钩子，10-15字一句话，用上面的钩子模板，必须点名宝妈/妈妈/带娃
+2. angle: 改编角度，怎么关联到宝妈搞钱、女性成长、柴米油盐和自媒体（30-50字）
+3. copyTitle: 文案标题（通透、有钩子感）
+4. copyOriginal: 保留来源的3-4句精华原句
+5. copyText: 完整二创文案
    - 金句3-4句 + 个人感悟2-3句，合为一个正文
    - 每句12-16字，读着要有连贯性
    - 不写已赚广告费等不实内容，赚钱欲望强烈但还没赚到
    - 延伸正文5-10句，放在图文下方
-4. 整体风格：通透、有力量、利他
+6. 整体风格：通透、有力量、利他
 
-请严格按JSON格式返回：
-{{"angle":"改编角度说明","copyTitle":"文案标题","copyOriginal":"保留的原句","copyText":"完整二创文案（含金句+感悟+延伸正文，用\\n换行）"}}"""
+请严格按JSON数组格式返回5条，不要返回其他内容：
+[
+  {{"hook":"10-15字钩子","angle":"改编角度","copyTitle":"标题","copyOriginal":"原句","copyText":"完整文案（用\\n换行）"}}
+]"""
 
         result = call_deepseek(prompt)
         if result:
             parsed = parse_ai_json(result)
-            if parsed and 'copyText' in parsed:
-                items.append({
-                    'source': src['source'],
-                    'sourceLabel': src['sourceLabel'],
-                    'title': src['title'],
-                    'angle': parsed.get('angle', ''),
-                    'copyTitle': parsed.get('copyTitle', ''),
-                    'copyOriginal': parsed.get('copyOriginal', ''),
-                    'copyText': parsed.get('copyText', '')
-                })
+            if parsed and isinstance(parsed, list):
+                for i, p in enumerate(parsed):
+                    if 'copyText' in p:
+                        src = batch_sources[i] if i < len(batch_sources) else batch_sources[0]
+                        items.append({
+                            'source': src.get('source', 'news'),
+                            'sourceLabel': src.get('sourceLabel', '热点'),
+                            'title': src.get('title', ''),
+                            'hook': p.get('hook', ''),
+                            'angle': p.get('angle', ''),
+                            'copyTitle': p.get('copyTitle', ''),
+                            'copyOriginal': p.get('copyOriginal', ''),
+                            'copyText': p.get('copyText', '')
+                        })
+                print(f"  第{batch+1}批AI生成 {len(parsed)} 条")
                 continue
 
-        # AI失败，用模板
-        items.append(get_fallback_hot_item(i, src))
+        # AI失败，用模板补充
+        for i, src in enumerate(batch_sources):
+            if len(items) < (batch+1)*5:
+                items.append(get_fallback_hot_item(batch*5+i, src))
 
-    return items
+    # 确保正好10条
+    while len(items) < 10:
+        idx = len(items)
+        src = all_sources[idx % len(all_sources)]
+        items.append(get_fallback_hot_item(idx, src))
+
+    # 给模板项也加hook
+    for item in items:
+        if not item.get('hook'):
+            item['hook'] = generate_hook_fallback(item.get('title', ''))
+
+    return items[:10]
+
+def generate_hook_fallback(title):
+    """模板钩子（AI失败时用）"""
+    hooks = [
+        '带娃崩溃的妈妈，看完这段释怀了',
+        '想赚钱的宝妈，千万别错过这条',
+        '同样是宝妈，为什么她那么通透',
+        '如果你也是累到想哭的妈妈，请听完',
+        '月薪三千的宝妈，我劝你看看这个',
+        '当妈后我才明白的真相，太戳心',
+        '别再emo了，带娃的妈妈听我说',
+        '看完这条的宝妈，都去搞钱了',
+        '我花三年才懂的道理，今天告诉你',
+        '带娃最累的那天，我想通了这件事',
+    ]
+    return hooks[hash(title) % len(hooks)]
 
 def get_fallback_hot_item(i, src):
     """模板二创（AI失败时用）"""
