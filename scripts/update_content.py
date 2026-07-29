@@ -271,9 +271,10 @@ def call_deepseek(prompt, system_prompt=''):
     payload = {
         'model': 'deepseek-chat',
         'messages': messages,
-        'max_tokens': 800,
+        'max_tokens': 1200,
         'temperature': 0.8,
-        'stream': False
+        'stream': False,
+        'response_format': {'type': 'json_object'}
     }
 
     try:
@@ -503,90 +504,71 @@ def generate_hot_items_ai(hot_items):
     # 构建热度摘要给AI
     hot_summary = "\n".join([f"{i+1}. [{s['sourceLabel']}] {s['title']}" for i, s in enumerate(all_sources[:10])])
 
-    # 一次性让AI生成所有10条（分2批，每批5条，保证质量）
+    # 逐条生成（更稳定，每条JSON小不容易出错）
     items = []
 
-    for batch in range(2):
-        batch_sources = all_sources[batch*5:(batch+1)*5]
-        batch_summary = "\n".join([f"{i+1}. [{s['sourceLabel']}] {s['title']}" for i, s in enumerate(batch_sources)])
-
-        print(f"  生成第{batch*5+1}-{batch*5+5}条二创...")
+    for i, src in enumerate(all_sources[:10]):
+        print(f"  生成第{i+1}条二创...")
         prompt = f"""{PERSONA}
 
 {HOOK_TEMPLATES}
 
-为以下5条热度内容分别写二创文案：
+为以下内容写一条二创文案：
 
-{batch_summary}
+来源：{src['sourceLabel']}
+标题/原句：{src['title']}
 
-每条要求：
-1. hook: 钩子，10-15字一句话，用上面的钩子模板，必须点名宝妈/妈妈/带娃
-2. angle: 改编角度，怎么关联到宝妈搞钱、女性成长、柴米油盐和自媒体（30-50字）
+要求：
+1. hook: 钩子，10-15字一句话，用钩子模板，必须点名宝妈/妈妈/带娃
+2. angle: 改编角度，关联宝妈搞钱、女性成长、柴米油盐和自媒体（30-50字）
 3. copyTitle: 文案标题（通透、有钩子感）
 4. copyOriginal: 保留来源的3-4句精华原句
-5. copyText: 完整二创文案
-   - 金句3-4句 + 个人感悟2-3句，合为一个正文
-   - 每句12-16字，读着要有连贯性
-   - 不写已赚广告费等不实内容，赚钱欲望强烈但还没赚到
-   - 延伸正文5-10句，放在图文下方
-6. 整体风格：通透、有力量、利他
+5. copyText: 完整二创文案，金句3-4句+个人感悟2-3句+延伸正文5-10句，每句12-16字
 
-请严格按JSON数组格式返回5条，不要返回其他内容：
-[
-  {{"hook":"10-15字钩子","angle":"改编角度","copyTitle":"标题","copyOriginal":"原句","copyText":"完整文案（用\\n换行）"}}
-]"""
+重要：返回纯JSON，不要返回其他内容。copyText中换行用 \\n 表示。
+
+{{"hook":"","angle":"","copyTitle":"","copyOriginal":"","copyText":""}}"""
 
         result = call_deepseek(prompt)
         if result:
-            # 保存AI原始返回用于调试
-            os.makedirs('data', exist_ok=True)
-            with open(f'data/ai_raw_batch{batch+1}.txt', 'w', encoding='utf-8') as f:
-                f.write(result)
-
             parsed = parse_ai_json(result)
-            if parsed and isinstance(parsed, list):
-                for i, p in enumerate(parsed):
-                    if 'copyText' in p:
-                        src = batch_sources[i] if i < len(batch_sources) else batch_sources[0]
-                        items.append({
-                            'source': src.get('source', 'news'),
-                            'sourceLabel': src.get('sourceLabel', '热点'),
-                            'title': src.get('title', ''),
-                            'hook': p.get('hook', ''),
-                            'angle': p.get('angle', ''),
-                            'copyTitle': p.get('copyTitle', ''),
-                            'copyOriginal': p.get('copyOriginal', ''),
-                            'copyText': p.get('copyText', '')
-                        })
-                print(f"  第{batch+1}批AI生成 {len(parsed)} 条")
+            if parsed and isinstance(parsed, dict) and 'copyText' in parsed:
+                items.append({
+                    'source': src.get('source', 'news'),
+                    'sourceLabel': src.get('sourceLabel', '热点'),
+                    'title': src.get('title', ''),
+                    'hook': parsed.get('hook', ''),
+                    'angle': parsed.get('angle', ''),
+                    'copyTitle': parsed.get('copyTitle', ''),
+                    'copyOriginal': parsed.get('copyOriginal', ''),
+                    'copyText': parsed.get('copyText', '')
+                })
+                print(f"    ✓ AI生成成功")
+                continue
+            elif parsed and isinstance(parsed, list) and len(parsed)>0 and 'copyText' in parsed[0]:
+                p = parsed[0]
+                items.append({
+                    'source': src.get('source', 'news'),
+                    'sourceLabel': src.get('sourceLabel', '热点'),
+                    'title': src.get('title', ''),
+                    'hook': p.get('hook', ''),
+                    'angle': p.get('angle', ''),
+                    'copyTitle': p.get('copyTitle', ''),
+                    'copyOriginal': p.get('copyOriginal', ''),
+                    'copyText': p.get('copyText', '')
+                })
+                print(f"    ✓ AI生成成功(数组)")
                 continue
             else:
-                print(f"  第{batch+1}批JSON解析失败，使用模板")
-                print(f"  AI返回前200字: {repr(result[:200])}")
-                # 尝试找到失败原因
-                try:
-                    json.loads(result.strip().rstrip('`'))
-                except json.JSONDecodeError as e:
-                    print(f"  JSON错误: {e}")
-                    print(f"  错误位置附近: {repr(result[max(0,e.pos-30):e.pos+30])}")
+                print(f"    ✗ JSON解析失败，用模板")
 
-        # AI失败，用模板补充
-        for i, src in enumerate(batch_sources):
-            if len(items) < (batch+1)*5:
-                items.append(get_fallback_hot_item(batch*5+i, src))
-
-    # 确保正好10条
-    while len(items) < 10:
-        idx = len(items)
-        src = all_sources[idx % len(all_sources)]
-        items.append(get_fallback_hot_item(idx, src))
-
-    # 给模板项也加hook
-    for item in items:
+        # AI失败，用模板
+        item = get_fallback_hot_item(i, src)
         if not item.get('hook'):
-            item['hook'] = generate_hook_fallback(item.get('title', ''))
+            item['hook'] = generate_hook_fallback(src.get('title', ''))
+        items.append(item)
 
-    return items[:10]
+    return items
 
 def generate_hook_fallback(title):
     """模板钩子（AI失败时用）"""
