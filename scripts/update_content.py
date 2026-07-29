@@ -466,7 +466,16 @@ HOOK_TEMPLATES = """宝妈赛道7种爆款钩子模板（10-15字一句话）：
 # 生成热点二创（AI改写，含钩子）
 # ============================================================
 def generate_hot_items_ai(hot_items):
-    """用AI生成10条热点二创内容，每条含钩子"""
+    """生成热点二创内容：优先使用手写文案（表格学习），AI补充空缺"""
+
+    # 优先加载手写文案（从表格学习的10条：3热搜+3同赛道+2金句+2明星）
+    manual_items = load_manual_hot()
+    if manual_items and len(manual_items) >= 10:
+        print("  使用手写文案（表格学习内容），不调用AI")
+        return manual_items[:10]
+
+    # 手写文案不足10条，用AI补充
+    print("  手写文案不足，AI补充生成...")
 
     # 按类型分组热度内容，确保来源多样化
     # 3条热搜 + 3条明星动态 + 2条歌曲 + 2条通透金句
@@ -606,6 +615,21 @@ def generate_hook_fallback(title):
         '带娃最累的那天，我想通了这件事',
     ]
     return hooks[hash(title) % len(hooks)]
+
+def load_manual_hot():
+    """加载手写文案（从阿圆成长记表格学习的内容）"""
+    try:
+        manual_path = os.path.join(os.path.dirname(__file__), 'manual_hot_data.json')
+        with open(manual_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if isinstance(data, dict) and 'items' in data:
+            return data['items']
+        elif isinstance(data, list):
+            return data
+        return []
+    except Exception as e:
+        print(f"  加载手写文案失败: {e}")
+        return []
 
 def load_user_collected_copy():
     """从Gist读取用户收集的同类型博主火文案（第9-10条用）"""
